@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Browser Agent</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      width: 340px;
+      min-height: 200px;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #f8fafc;
+    }
+
+    .badge {
+      font-size: 10px;
+      background: #1e40af;
+      color: #bfdbfe;
+      padding: 2px 7px;
+      border-radius: 99px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 72px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 13px;
+      padding: 8px 10px;
+      resize: none;
+      outline: none;
+      line-height: 1.5;
+    }
+
+    textarea:focus { border-color: #3b82f6; }
+    textarea::placeholder { color: #64748b; }
+
+    button#runBtn {
+      margin-top: 10px;
+      width: 100%;
+      padding: 9px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button#runBtn:hover { background: #2563eb; }
+    button#runBtn:disabled { background: #475569; cursor: not-allowed; }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      min-height: 32px;
+    }
+
+    .status-info    { background: #1e3a5f; color: #93c5fd; }
+    .status-success { background: #14532d; color: #86efac; }
+    .status-warn    { background: #451a03; color: #fcd34d; }
+    .status-error   { background: #450a0a; color: #fca5a5; }
+
+    .log-section {
+      margin-top: 14px;
+      border-top: 1px solid #334155;
+      padding-top: 12px;
+    }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .log-header span {
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    button#refreshLog {
+      font-size: 11px;
+      background: transparent;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 3px 8px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button#refreshLog:hover { border-color: #64748b; color: #cbd5e1; }
+
+    pre#logOutput {
+      font-family: "Fira Code", "Cascadia Code", monospace;
+      font-size: 11px;
+      line-height: 1.7;
+      color: #94a3b8;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Browser Agent</h1>
+    <span class="badge">SIH26171</span>
+  </header>
+
+  <textarea
+    id="taskInput"
+    placeholder="Describe a task… e.g. 'Fill out the login form with test credentials'"
+  ></textarea>
+
+  <button id="runBtn">▶ Run Agent</button>
+
+  <div id="status" class="status status-info">Ready. Enter a task and click Run.</div>
+
+  <div class="log-section">
+    <div class="log-header">
+      <span>Performance Log</span>
+      <button id="refreshLog">↻ Refresh</button>
+    </div>
+    <pre id="logOutput">No runs yet.</pre>
+  </div>
+
+  <script src="dist/popup.js"></script>
+</body>
+</html>

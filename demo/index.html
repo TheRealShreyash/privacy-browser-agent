@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIH26171 Demo — Privacy Browser Agent</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      padding: 32px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+
+    section { margin-bottom: 40px; }
+    h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #334155; }
+
+    /* ---- Form section ---- */
+    .form-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 420px;
+    }
+
+    .form-card label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #475569;
+      margin-bottom: 5px;
+      margin-top: 16px;
+    }
+
+    .form-card label:first-child { margin-top: 0; }
+
+    .form-card input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-card input:focus { border-color: #3b82f6; }
+
+    .form-card button[type=submit] {
+      margin-top: 20px;
+      width: 100%;
+      padding: 10px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* ---- Form + Face side by side, so both fit in one screenshot without scrolling ---- */
+    .top-row {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .top-row #formSection { flex: 0 0 auto; }
+    .top-row #faceSection { flex: 1 1 260px; min-width: 240px; }
+
+    /* ---- Face image section ---- */
+    .face-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .face-container img {
+      width: 160px;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .face-info {
+      max-width: 100%;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    /* ---- Canvas demo section ---- */
+    .canvas-row {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .canvas-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .canvas-wrap span {
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    canvas {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      display: block;
+    }
+
+    /* ---- Controls ---- */
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+
+    .controls button {
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+
+    #runPipelineBtn { background: #0f172a; color: #f8fafc; }
+    #runPipelineBtn:hover { background: #1e293b; }
+    #runRedactionBtn { background: #7c3aed; color: #fff; }
+    #runRedactionBtn:hover { background: #6d28d9; }
+
+    /* ---- Log ---- */
+    #demoLog {
+      background: #0f172a;
+      color: #a3e635;
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      padding: 16px;
+      border-radius: 10px;
+      white-space: pre-wrap;
+      min-height: 80px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    /* ---- PII indicators ---- */
+    .pii-badge {
+      display: inline-block;
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>SIH26171 — Privacy Browser Agent Demo</h1>
+  <p class="subtitle">
+    On-device visual perception with local PII redaction. Run the extension on this page to see the agent in action.
+  </p>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- Form + Face side by side: chrome.tabs.captureVisibleTab only grabs  -->
+  <!-- what's on screen, so both need to fit in one viewport together     -->
+  <!-- rather than being stacked with the face below the fold.            -->
+  <!-- ------------------------------------------------------------------ -->
+  <div class="top-row">
+  <section id="formSection">
+    <h2>
+      Target Form
+      <span class="pii-badge">⚠ Contains PII fields</span>
+    </h2>
+    <div class="form-card">
+      <label for="nameField">Full Name</label>
+      <input id="nameField" type="text" placeholder="Enter your name" autocomplete="name" />
+
+      <label for="emailField">Email Address</label>
+      <input id="emailField" type="email" placeholder="you@example.com" autocomplete="email" />
+
+      <label for="phoneField">Phone Number</label>
+      <input id="phoneField" type="tel" placeholder="+91 98765 43210" autocomplete="tel" />
+
+      <label for="passwordField">Password</label>
+      <input id="passwordField" type="password" placeholder="••••••••" autocomplete="current-password" />
+
+      <label for="confirmPasswordField">Confirm Password</label>
+      <input id="confirmPasswordField" type="password" placeholder="••••••••" autocomplete="new-password" />
+
+      <button type="submit" id="submitBtn">Create Account</button>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- Face image — must be detected and blurred by the vision pipeline    -->
+  <!-- ------------------------------------------------------------------ -->
+  <section id="faceSection">
+    <h2>Face Image <span class="pii-badge">⚠ Contains face (PII)</span></h2>
+    <div class="face-container">
+      <!--
+        Using a placeholder face image from a public domain source.
+        Replace with any real face image for a live demo.
+      -->
+      <img
+        id="faceImg"
+        src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'><rect width='200' height='200' fill='%23e2e8f0'/><circle cx='100' cy='85' r='45' fill='%23fbcfe8'/><circle cx='85' cy='75' r='6' fill='%231e293b'/><circle cx='115' cy='75' r='6' fill='%231e293b'/><path d='M85 105 Q100 120 115 105' stroke='%231e293b' stroke-width='4' fill='none'/><path d='M40 190 Q100 130 160 190' fill='%233b82f6'/></svg>"
+        alt="Sample face/person image for PII detection demo"
+      />
+      <div class="face-info">
+        The vision model detects and blurs this face before anything is sent
+        to the server. The cartoon placeholder won't be recognized (trained
+        on real photos, not line art) — upload a real one to see live
+        detection fire.
+        <br /><br />
+        <label for="facePhotoInput" style="display:block; font-weight:600; color:#475569; margin-bottom:6px;">
+          Upload a real photo:
+        </label>
+        <input type="file" id="facePhotoInput" accept="image/*" />
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- Canvas demo — before / after redaction                              -->
+  <!-- ------------------------------------------------------------------ -->
+  <section id="canvasSection">
+    <h2>Redaction Preview (Before / After)</h2>
+
+    <div class="controls">
+      <button id="runRedactionBtn">🛡 Demo Redaction (Standalone)</button>
+      <button id="runPipelineBtn">▶ Run Full Agent Pipeline</button>
+    </div>
+
+    <div class="canvas-row">
+      <div class="canvas-wrap">
+        <span>Before (Original)</span>
+        <canvas id="beforeCanvas" width="420" height="280"></canvas>
+      </div>
+      <div class="canvas-wrap">
+        <span>After (Redacted)</span>
+        <canvas id="afterCanvas" width="420" height="280"></canvas>
+      </div>
+    </div>
+
+    <!-- Real pipeline result: the actual image bytes sent to Gemini.
+         Shown full-width (not crammed into the small canvases above,
+         which are only for the standalone mockup) + a real download so
+         it can be inspected at full resolution. Hidden until a real run completes. -->
+    <div id="realResultCard" hidden style="margin-top:24px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+      <h2 style="margin-bottom:4px;">Real Redacted Image (actually sent to Gemini)</h2>
+      <p style="font-size:13px; color:#64748b; margin-bottom:14px;">This is the exact PNG your device transmitted for this run — nothing more.</p>
+      <img id="realResultImg" style="max-width:100%; border-radius:8px; border:1px solid #e2e8f0; display:block;" alt="Redacted screenshot actually sent to the VLM" />
+      <a id="realResultDownload" style="display:inline-block; margin-top:14px; padding:9px 18px; background:#0f172a; color:#f8fafc; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none;">
+        ⬇ Download full-resolution PNG
+      </a>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- Demo log                                                            -->
+  <!-- ------------------------------------------------------------------ -->
+  <section id="logSection">
+    <h2>Pipeline Log</h2>
+    <pre id="demoLog">Ready. Click "Demo Redaction" or install the extension and click "Run Full Agent Pipeline".</pre>
+  </section>
+
+  <script>
+    const log = document.getElementById("demoLog");
+
+    function appendLog(msg) {
+      log.textContent += `\n${new Date().toLocaleTimeString()} | ${msg}`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // -------------------------------------------------------------------------
+    // Standalone redaction demo (no extension needed) — draws boxes over canvas
+    // -------------------------------------------------------------------------
+    document.getElementById("runRedactionBtn").addEventListener("click", async () => {
+      appendLog("Starting standalone redaction demo…");
+
+      const beforeCanvas = document.getElementById("beforeCanvas");
+      const afterCanvas  = document.getElementById("afterCanvas");
+      const bCtx = beforeCanvas.getContext("2d");
+      const aCtx = afterCanvas.getContext("2d");
+
+      // Draw a simplified composite: form + face image side by side
+      const faceImg = document.getElementById("faceImg");
+      bCtx.clearRect(0, 0, 420, 280);
+      bCtx.fillStyle = "#f8fafc";
+      bCtx.fillRect(0, 0, 420, 280);
+
+      // Draw face image on the left
+      try {
+        bCtx.drawImage(faceImg, 10, 10, 180, 180);
+        appendLog("Drew face image on before-canvas.");
+      } catch (e) {
+        appendLog("⚠ CORS — face image could not be drawn. Use a local image for full demo.");
+        bCtx.fillStyle = "#cbd5e1";
+        bCtx.fillRect(10, 10, 180, 180);
+        bCtx.fillStyle = "#64748b";
+        bCtx.font = "13px sans-serif";
+        bCtx.fillText("Face image", 40, 105);
+      }
+
+      // Draw fake password field indicator
+      bCtx.fillStyle = "#fff";
+      bCtx.strokeStyle = "#cbd5e1";
+      bCtx.lineWidth = 1;
+      bCtx.beginPath(); bCtx.roundRect(210, 10, 200, 40, 6); bCtx.fill(); bCtx.stroke();
+      bCtx.fillStyle = "#475569";
+      bCtx.font = "13px sans-serif";
+      bCtx.fillText("Password: hunter2", 218, 35);
+
+      // Draw fake email indicator
+      bCtx.fillStyle = "#fff";
+      bCtx.beginPath(); bCtx.roundRect(210, 60, 200, 40, 6); bCtx.fill(); bCtx.stroke();
+      bCtx.fillStyle = "#475569";
+      bCtx.fillText("Email: user@test.com", 218, 85);
+
+      appendLog("Before-canvas drawn.");
+
+      // Copy to after-canvas
+      aCtx.clearRect(0, 0, 420, 280);
+      aCtx.drawImage(beforeCanvas, 0, 0);
+
+      // Simulate blur on face region (pixelate approximation)
+      appendLog("Applying face blur (10px pixel approximation)…");
+      pixelateRegion(aCtx, { x: 10, y: 10, w: 180, h: 180 }, 12);
+
+      // Blackout password field
+      appendLog("Blacking out password field…");
+      aCtx.fillStyle = "#000";
+      aCtx.fillRect(210, 10, 200, 40);
+
+      // Blackout email field
+      appendLog("Blacking out email field…");
+      aCtx.fillStyle = "#000";
+      aCtx.fillRect(210, 60, 200, 40);
+
+      // Add labels
+      aCtx.fillStyle = "rgba(220,38,38,0.85)";
+      aCtx.font = "bold 11px sans-serif";
+      aCtx.fillText("FACE BLURRED", 50, 200);
+      aCtx.fillText("PII REDACTED", 255, 55);
+      aCtx.fillText("PII REDACTED", 255, 105);
+
+      appendLog("✅ Redaction demo complete. 3 regions redacted (1 face, 2 PII).");
+    });
+
+    /** Pixelate a region — approximates blur for demo (no WebGL needed). */
+    function pixelateRegion(ctx, { x, y, w, h }, size) {
+      const imgData = ctx.getImageData(x, y, w, h);
+      const d = imgData.data;
+      for (let py = 0; py < h; py += size) {
+        for (let px = 0; px < w; px += size) {
+          // average colour in block
+          let r = 0, g = 0, b = 0, count = 0;
+          for (let dy = 0; dy < size && py + dy < h; dy++) {
+            for (let dx = 0; dx < size && px + dx < w; dx++) {
+              const i = ((py + dy) * w + (px + dx)) * 4;
+              r += d[i]; g += d[i+1]; b += d[i+2]; count++;
+            }
+          }
+          r = Math.round(r / count); g = Math.round(g / count); b = Math.round(b / count);
+          for (let dy = 0; dy < size && py + dy < h; dy++) {
+            for (let dx = 0; dx < size && px + dx < w; dx++) {
+              const i = ((py + dy) * w + (px + dx)) * 4;
+              d[i] = r; d[i+1] = g; d[i+2] = b;
+            }
+          }
+        }
+      }
+      ctx.putImageData(imgData, x, y);
+    }
+
+    // -------------------------------------------------------------------------
+    // Full pipeline trigger — sends CustomEvent across isolated world boundary
+    // -------------------------------------------------------------------------
+    let ackTimer = null;
+    let ackReceived = false;
+
+    window.addEventListener("SIH_AGENT_ACK", () => {
+      ackReceived = true;
+      clearTimeout(ackTimer);
+      appendLog("✅ Extension received the task — running pipeline (model load + inference + redaction + server call)…");
+    });
+
+    window.addEventListener("SIH_AGENT_RESULT", (event) => {
+      const { actionCount, log: perfLog, redactedImageDataUrl } = event.detail || {};
+      appendLog(`✅ Pipeline complete — ${actionCount ?? 0} action(s) executed on this page.`);
+      if (perfLog) {
+        appendLog(`   total=${perfLog.totalMs?.toFixed?.(1)}ms  inference=${perfLog.inferenceMs?.toFixed?.(1)}ms  server=${perfLog.serverRoundtripMs?.toFixed?.(1)}ms  backend=${perfLog.deviceBackend}`);
+        appendLog(`   domElements=${perfLog.domElementCount ?? "?"}  detections=${perfLog.detectionCount ?? "?"}  redactedRegions=${perfLog.redactedRegions ?? "?"}`);
+        if (perfLog.inferenceError) {
+          appendLog(`❌ Vision model failed to run: ${perfLog.inferenceError}`);
+          appendLog("   This is why detections is 0 regardless of what's in the photo — it's not a 'no face found' result, inference never completed.");
+        } else if ((perfLog.detectionCount ?? 0) === 0) {
+          appendLog("⚠ Vision model ran successfully but found 0 objects — the photo may not be a clear enough person/face shot, or is too stylized (cartoon/game avatar) for a photo-trained detector.");
+        }
+        if ((actionCount ?? 0) === 0) {
+          appendLog("⚠ 0 actions means the VLM returned an empty plan — usually because domSummary was empty/unusable, or the model judged the (redacted) screenshot insufficient. Check the server terminal for the raw Gemini response.");
+        }
+      }
+
+      if (redactedImageDataUrl) {
+        showRealRedactedImage(redactedImageDataUrl);
+      }
+    });
+
+    /**
+     * Show the ACTUAL image bytes sent to the cloud VLM — real proof, not a
+     * mockup. Full-width thumbnail (not crammed into the tiny 420x280
+     * canvases, which are too small to read a busy screenshot legibly) plus
+     * a real file download for inspecting it at full resolution.
+     */
+    function showRealRedactedImage(dataUrl) {
+      const card = document.getElementById("realResultCard");
+      const img = document.getElementById("realResultImg");
+      const downloadLink = document.getElementById("realResultDownload");
+
+      img.src = dataUrl;
+      downloadLink.href = dataUrl;
+      downloadLink.download = `redacted-screenshot-${Date.now()}.png`;
+      card.hidden = false;
+      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+      appendLog("🖼 Real redacted image ready below — click Download to inspect it at full resolution.");
+    }
+
+    window.addEventListener("SIH_AGENT_ERROR", (event) => {
+      const error = event.detail?.error ?? "unknown error";
+      appendLog(`❌ Agent error: ${error}`);
+
+      // The content script binding dies whenever the extension is reloaded
+      // while this tab is open. A plain page reload (which doesn't touch
+      // chrome.* APIs, so it still works even from a dead content script)
+      // re-injects a fresh one automatically — no manual F5 needed.
+      if (error.includes("Extension context invalidated")) {
+        appendLog("🔄 Auto-refreshing this tab in 2s to reconnect to the extension…");
+        setTimeout(() => location.reload(), 2000);
+      }
+    });
+
+    document.getElementById("runPipelineBtn").addEventListener("click", () => {
+      if (location.protocol === "file:") {
+        appendLog("❌ This page was opened via file:// — Chrome extensions cannot access file:// pages by default.");
+        appendLog("   Start the server (cd server && npm run dev) and open http://localhost:3000/demo/index.html instead.");
+        return;
+      }
+
+      // chrome.tabs.captureVisibleTab only grabs what's currently scrolled
+      // into view. Scroll to top first so the form + face image (the whole
+      // point of the screenshot) are guaranteed to actually be in frame —
+      // this is synchronous, and the real capture happens several async
+      // hops later (message round-trip to the background service worker),
+      // so there's no race.
+      window.scrollTo(0, 0);
+
+      appendLog("Triggering full agent pipeline via CustomEvent…");
+
+      // Arm the ack-timeout BEFORE dispatching: SIH_RUN_AGENT is handled
+      // synchronously by the content script's listener, so SIH_AGENT_ACK
+      // can fire (and need to cancel this timer) before dispatchEvent()
+      // below even returns.
+      ackReceived = false;
+      clearTimeout(ackTimer);
+      ackTimer = setTimeout(() => {
+        if (ackReceived) return;
+        appendLog("⚠ No response from the extension after 3s. Checklist:");
+        appendLog("   1. Is the extension loaded? chrome://extensions → Load unpacked → select extension/");
+        appendLog("   2. Did you rebuild it after code changes? (npm run build in extension/)");
+        appendLog("   3. Reload this tab after (re)loading the extension — content scripts only attach on fresh page loads.");
+      }, 3000);
+
+      window.dispatchEvent(new CustomEvent("SIH_RUN_AGENT", {
+        detail: { task: "Fill out the registration form with test data and submit." }
+      }));
+      appendLog("Sent SIH_RUN_AGENT event. Waiting for the extension to respond…");
+    });
+
+    if (location.protocol === "file:") {
+      appendLog("⚠ Opened via file:// — the extension cannot run here. Use http://localhost:3000/demo/index.html (start the server first) for the full pipeline demo. The standalone redaction demo above still works.");
+    }
+
+    // -------------------------------------------------------------------------
+    // Live photo upload — swap in a real photo so face detection actually
+    // fires (the default cartoon placeholder is never recognized as a face).
+    // -------------------------------------------------------------------------
+    document.getElementById("facePhotoInput").addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        document.getElementById("faceImg").src = reader.result;
+        appendLog(`📷 Loaded "${file.name}" as the face image — run the pipeline to test live detection.`);
+      };
+      reader.onerror = () => appendLog(`❌ Could not read "${file.name}".`);
+      reader.readAsDataURL(file);
+    });
+
+    appendLog("Demo page ready. Form has " +
+      document.querySelectorAll("#formSection input").length + " input fields.");
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "name": "sih26171-extension",
+  "version": "0.1.0",
+  "description": "Privacy-preserving browser agent extension",
+  "private": true,
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch",
+    "build:dev": "webpack --mode development",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.5.2"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.320",
+    "copy-webpack-plugin": "^12.0.2",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.8.3",
+    "webpack": "^5.99.9",
+    "webpack-cli": "^6.0.1"
+  }
+}
