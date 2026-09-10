@@ -11,7 +11,7 @@
 
 import { pipeline, env, RawImage } from "@huggingface/transformers";
 import {
-  RunAgentMessage,
+  BackgroundMessage,
   ActionPlan,
   Action,
   PerformanceLog,
@@ -37,26 +37,44 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onMessage.addListener(
   (
-    message: RunAgentMessage,
+    message: BackgroundMessage,
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response: unknown) => void
   ) => {
-    if (message.type !== "RUN_AGENT") return false;
+    if (message.type === "RUN_AGENT") {
+      const wallStart = performance.now();
 
-    const wallStart = performance.now();
+      runAgentPipeline(message.task, _sender.tab?.id)
+        .then(({ actionPlan, log, redactedImageBase64 }) => {
+          log.totalMs = performance.now() - wallStart;
+          chrome.storage.local.set({ lastPerformanceLog: log });
+          sendResponse({ type: "AGENT_RESULT", actionPlan, log, redactedImageBase64 });
+        })
+        .catch((err: Error) => {
+          console.error("[BrowserAgent:bg] Pipeline error:", err);
+          sendResponse({ type: "AGENT_ERROR", error: err.message });
+        });
 
-    runAgentPipeline(message.task, _sender.tab?.id)
-      .then(({ actionPlan, log, redactedImageBase64 }) => {
-        log.totalMs = performance.now() - wallStart;
-        chrome.storage.local.set({ lastPerformanceLog: log });
-        sendResponse({ type: "AGENT_RESULT", actionPlan, log, redactedImageBase64 });
-      })
-      .catch((err: Error) => {
-        console.error("[BrowserAgent:bg] Pipeline error:", err);
-        sendResponse({ type: "AGENT_ERROR", error: err.message });
-      });
+      return true; // keep message channel open for async sendResponse
+    }
 
-    return true; // keep message channel open for async sendResponse
+    if (message.type === "RUN_COMPARISON") {
+      const wallStart = performance.now();
+
+      runComparisonPipeline(message.task, _sender.tab?.id)
+        .then(({ naive, redacted, log }) => {
+          log.totalMs = performance.now() - wallStart;
+          sendResponse({ type: "COMPARISON_RESULT", naive, redacted, log });
+        })
+        .catch((err: Error) => {
+          console.error("[BrowserAgent:bg] Comparison pipeline error:", err);
+          sendResponse({ type: "COMPARISON_ERROR", error: err.message });
+        });
+
+      return true;
+    }
+
+    return false;
   }
 );
 
@@ -64,16 +82,25 @@ chrome.runtime.onMessage.addListener(
 // Pipeline orchestrator
 // ---------------------------------------------------------------------------
 
-async function runAgentPipeline(
-  task: string,
-  tabId?: number
-): Promise<{ actionPlan: ActionPlan; log: PerformanceLog; redactedImageBase64: string }> {
-  // If tabId is missing (e.g. triggered from popup), query the active window tab
-  if (!tabId) {
-    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    tabId = activeTab?.id;
-  }
+/** Resolve a tabId, falling back to the active window tab (e.g. when triggered from the popup). */
+async function resolveTabId(tabId?: number): Promise<number | undefined> {
+  if (tabId) return tabId;
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return activeTab?.id;
+}
 
+/**
+ * Shared steps 0–4: wait for layout to settle, capture the screenshot, scan
+ * the DOM, run on-device vision inference, and redact. Used by both the
+ * normal single-plan pipeline and the naive-vs-redacted comparison pipeline
+ * — both need the exact same capture, just sent to the server differently.
+ */
+async function captureAndRedact(tabId: number): Promise<{
+  screenshotDataUrl: string;
+  domSummary: SanitizedContext["domSummary"];
+  redactionResult: Awaited<ReturnType<typeof redactScreenshot>>;
+  log: Partial<PerformanceLog>;
+}> {
   const log: Partial<PerformanceLog> = {
     timestamp: new Date().toISOString(),
   };
@@ -123,9 +150,42 @@ async function runAgentPipeline(
   });
   log.redactionMs = performance.now() - redactStart;
   log.redactedRegions = redactionResult.redactedRegions;
+  log.faceRegions = redactionResult.faceRegions;
+  log.piiRegions = redactionResult.piiRegions;
   console.log(
     `[BrowserAgent:bg] Redaction: ${redactionResult.redactedRegions} regions (${redactionResult.faceRegions} faces, ${redactionResult.piiRegions} PII) in ${log.redactionMs.toFixed(1)}ms`
   );
+
+  return { screenshotDataUrl, domSummary, redactionResult, log };
+}
+
+function finalizeLog(log: Partial<PerformanceLog>): PerformanceLog {
+  return {
+    modelLoadMs: log.modelLoadMs ?? 0,
+    inferenceMs: log.inferenceMs ?? 0,
+    redactionMs: log.redactionMs ?? 0,
+    payloadSizeBytes: log.payloadSizeBytes ?? 0,
+    serverRoundtripMs: log.serverRoundtripMs ?? 0,
+    totalMs: log.totalMs ?? 0,
+    deviceBackend: log.deviceBackend ?? "wasm",
+    detectionCount: log.detectionCount ?? 0,
+    redactedRegions: log.redactedRegions ?? 0,
+    faceRegions: log.faceRegions ?? 0,
+    piiRegions: log.piiRegions ?? 0,
+    domElementCount: log.domElementCount ?? 0,
+    inferenceError: log.inferenceError,
+    timestamp: log.timestamp ?? new Date().toISOString(),
+  };
+}
+
+async function runAgentPipeline(
+  task: string,
+  tabIdArg?: number
+): Promise<{ actionPlan: ActionPlan; log: PerformanceLog; redactedImageBase64: string }> {
+  const tabId = await resolveTabId(tabIdArg);
+  if (!tabId) throw new Error("No active tab to run the agent on.");
+
+  const { domSummary, redactionResult, log } = await captureAndRedact(tabId);
 
   // -- Step 5: Build sanitized payload and send to server (D4) ---------------
   const payload: SanitizedContext = {
@@ -141,29 +201,65 @@ async function runAgentPipeline(
   log.serverRoundtripMs = performance.now() - serverStart;
 
   // -- Step 6: Execute actions directly on active tab DOM (D5) ---------------
-  if (tabId && actionPlan.actions.length > 0) {
+  if (actionPlan.actions.length > 0) {
     console.log(`[BrowserAgent:bg] Executing ${actionPlan.actions.length} action(s) on tab ${tabId}...`);
     await executeActionsOnTab(tabId, actionPlan.actions);
   } else {
-    console.warn(`[BrowserAgent:bg] No actions or tabId missing (tabId=${tabId}, actions=${actionPlan.actions.length})`);
+    console.warn(`[BrowserAgent:bg] No actions returned (actions=${actionPlan.actions.length})`);
   }
 
-  const fullLog: PerformanceLog = {
-    modelLoadMs: log.modelLoadMs ?? 0,
-    inferenceMs: log.inferenceMs ?? 0,
-    redactionMs: log.redactionMs ?? 0,
-    payloadSizeBytes: log.payloadSizeBytes ?? 0,
-    serverRoundtripMs: log.serverRoundtripMs ?? 0,
-    totalMs: log.totalMs ?? 0,
-    deviceBackend: log.deviceBackend ?? "wasm",
-    detectionCount: log.detectionCount ?? 0,
-    redactedRegions: log.redactedRegions ?? 0,
-    domElementCount: log.domElementCount ?? 0,
-    inferenceError: log.inferenceError,
-    timestamp: log.timestamp ?? new Date().toISOString(),
-  };
+  return { actionPlan, log: finalizeLog(log), redactedImageBase64: redactionResult.redactedImage };
+}
 
-  return { actionPlan, log: fullLog, redactedImageBase64: redactionResult.redactedImage };
+/**
+ * Privacy leakage comparison: same single capture sent to Gemini two ways —
+ * raw (what a naive screenshot-the-tab agent would send) and redacted (what
+ * this extension actually sends). Both are real /analyze calls, run
+ * concurrently. Only the redacted plan executes on the page, so the form
+ * doesn't get filled twice — but the naive plan's action count is real,
+ * proving task completion doesn't depend on the cloud seeing the raw image.
+ */
+async function runComparisonPipeline(
+  task: string,
+  tabIdArg?: number
+): Promise<{
+  naive: { actionPlan: ActionPlan; imageBase64: string };
+  redacted: { actionPlan: ActionPlan; imageBase64: string };
+  log: PerformanceLog;
+}> {
+  const tabId = await resolveTabId(tabIdArg);
+  if (!tabId) throw new Error("No active tab to run the comparison on.");
+
+  const { screenshotDataUrl, domSummary, redactionResult, log } = await captureAndRedact(tabId);
+
+  const rawImageBase64 = screenshotDataUrl.replace(/^data:image\/\w+;base64,/, "");
+
+  const naivePayload: SanitizedContext = { redactedImage: rawImageBase64, domSummary, task };
+  const redactedPayload: SanitizedContext = { redactedImage: redactionResult.redactedImage, domSummary, task };
+
+  const serverStart = performance.now();
+  const [naiveActionPlan, redactedActionPlan] = await Promise.all([
+    callServer(naivePayload),
+    callServer(redactedPayload),
+  ]);
+  log.serverRoundtripMs = performance.now() - serverStart;
+  log.payloadSizeBytes = new TextEncoder().encode(JSON.stringify(redactedPayload)).length;
+
+  console.log(
+    `[BrowserAgent:bg] Comparison: naive=${naiveActionPlan.actions.length} actions, ` +
+    `redacted=${redactedActionPlan.actions.length} actions`
+  );
+
+  if (redactedActionPlan.actions.length > 0) {
+    console.log(`[BrowserAgent:bg] Executing redacted-mode plan (${redactedActionPlan.actions.length} action(s)) on tab ${tabId}...`);
+    await executeActionsOnTab(tabId, redactedActionPlan.actions);
+  }
+
+  return {
+    naive: { actionPlan: naiveActionPlan, imageBase64: rawImageBase64 },
+    redacted: { actionPlan: redactedActionPlan, imageBase64: redactionResult.redactedImage },
+    log: finalizeLog(log),
+  };
 }
 
 // ---------------------------------------------------------------------------

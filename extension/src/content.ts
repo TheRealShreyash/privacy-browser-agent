@@ -16,7 +16,12 @@
  *    show real status instead of firing blind.
  */
 
-import { RunAgentMessage, ContentMessage } from "./types/contracts";
+import {
+  RunAgentMessage,
+  ContentMessage,
+  RunComparisonMessage,
+  ComparisonContentMessage,
+} from "./types/contracts";
 
 console.log("[BrowserAgent:content] Content script loaded on", location.href);
 
@@ -76,12 +81,62 @@ async function triggerAgent(task: string): Promise<void> {
   }
 }
 
+/**
+ * Kick off the naive-vs-redacted comparison pipeline. Mirrors triggerAgent's
+ * ACK/RESULT/ERROR bridging, but on its own event names so it can't cross
+ * wires with a concurrent regular triggerAgent run.
+ */
+async function triggerComparison(task: string): Promise<void> {
+  console.log("[BrowserAgent:content] Triggering leakage comparison with task:", task);
+  window.dispatchEvent(new CustomEvent("SIH_COMPARISON_ACK", { detail: { task } }));
+
+  try {
+    const message: RunComparisonMessage = { type: "RUN_COMPARISON", task };
+    const response = await chrome.runtime.sendMessage<RunComparisonMessage, ComparisonContentMessage>(message);
+
+    if (response.type === "COMPARISON_ERROR") {
+      console.error("[BrowserAgent:content] Comparison error:", response.error);
+      window.dispatchEvent(new CustomEvent("SIH_COMPARISON_ERROR", { detail: { error: response.error } }));
+      return;
+    }
+
+    console.log("[BrowserAgent:content] Comparison result:", response.naive, response.redacted);
+    window.dispatchEvent(
+      new CustomEvent("SIH_COMPARISON_RESULT", {
+        detail: {
+          naiveActionCount: response.naive.actionPlan.actions.length,
+          naiveImageDataUrl: `data:image/png;base64,${response.naive.imageBase64}`,
+          redactedActionCount: response.redacted.actionPlan.actions.length,
+          redactedImageDataUrl: `data:image/png;base64,${response.redacted.imageBase64}`,
+          log: response.log,
+        },
+      })
+    );
+  } catch (err) {
+    let error = (err as Error).message;
+    if (error.includes("Extension context invalidated")) {
+      error =
+        "Extension context invalidated — the extension was reloaded/rebuilt after this " +
+        "tab was opened. Refresh this tab (F5) and try again.";
+    }
+    console.error("[BrowserAgent:content] Failed to reach background service worker:", error);
+    window.dispatchEvent(new CustomEvent("SIH_COMPARISON_ERROR", { detail: { error } }));
+  }
+}
+
 // Listen for CustomEvent dispatched from web pages (e.g. demo page button)
 window.addEventListener("SIH_RUN_AGENT", (event: Event) => {
   const customEvent = event as CustomEvent<{ task: string }>;
   const task = customEvent.detail?.task || "Fill out the form";
   console.log("[BrowserAgent:content] Received SIH_RUN_AGENT CustomEvent:", task);
   triggerAgent(task).catch(console.error);
+});
+
+window.addEventListener("SIH_RUN_COMPARISON", (event: Event) => {
+  const customEvent = event as CustomEvent<{ task: string }>;
+  const task = customEvent.detail?.task || "Fill out the form";
+  console.log("[BrowserAgent:content] Received SIH_RUN_COMPARISON CustomEvent:", task);
+  triggerComparison(task).catch(console.error);
 });
 
 // Also listen for direct messages from background (alternative trigger path)

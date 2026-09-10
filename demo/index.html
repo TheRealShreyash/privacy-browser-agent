@@ -105,6 +105,7 @@
     .top-row #formSection { animation-delay: .05s; }
     .top-row #faceSection { animation-delay: .15s; }
     #canvasSection { animation-delay: .25s; }
+    #comparisonSection { animation-delay: .3s; }
     #logSection { animation-delay: .35s; }
 
     @keyframes fadeInUp {
@@ -338,6 +339,82 @@
     }
     #realResultCard a:hover { transform: translateY(-1px); box-shadow: 0 0 20px var(--accent-2-glow); }
 
+    /* ---- Leakage comparison ---- */
+    .comparison-intro {
+      font-size: 13px;
+      color: var(--text-muted);
+      max-width: 620px;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    #runComparisonBtn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      border: none;
+      background: linear-gradient(135deg, var(--danger), var(--accent-2));
+      color: #fff;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    #runComparisonBtn:hover { transform: translateY(-2px); box-shadow: 0 0 22px var(--accent-2-glow); }
+
+    #comparisonResult { margin-top: 20px; animation: fadeInUp .5s ease both; }
+
+    .comparison-images {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .comparison-col { flex: 1 1 280px; min-width: 260px; }
+
+    .comparison-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      text-align: center;
+      transition: background-color .3s ease, color .3s ease, border-color .3s ease;
+    }
+    .comparison-label.naive { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }
+    .comparison-label.ours { background: var(--surface); color: var(--accent-2); border: 1px solid var(--border); }
+
+    .comparison-col img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: block;
+      transition: border-color .3s ease;
+    }
+
+    #comparisonTable {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+    #comparisonTable th, #comparisonTable td {
+      text-align: left;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      transition: border-color .3s ease, color .3s ease;
+    }
+    #comparisonTable th {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    #comparisonTable td:first-child { color: var(--text); }
+
     /* ---- Log ---- */
     #demoLog {
       background: var(--log-bg);
@@ -474,6 +551,44 @@
   </section>
 
   <!-- ------------------------------------------------------------------ -->
+  <!-- Privacy leakage comparison: one real screenshot, sent to Gemini    -->
+  <!-- two ways (raw vs redacted) — both real network calls, not mocked.  -->
+  <!-- ------------------------------------------------------------------ -->
+  <section id="comparisonSection">
+    <h2>Privacy Leakage Comparison <span class="pii-badge">⚠ Naive vs Ours</span></h2>
+    <p class="comparison-intro">
+      Same task, same cloud AI, one real screenshot — sent two ways. "Naive" is what a typical screenshot-based browser agent sends: the raw, untouched image. "Ours" is what this extension actually sends. Both go to Gemini for real.
+    </p>
+
+    <button id="runComparisonBtn">⚔ Run Leakage Comparison</button>
+
+    <div id="comparisonResult" hidden>
+      <div class="comparison-images">
+        <div class="comparison-col">
+          <span class="comparison-label naive">❌ Naive Agent — sent to Gemini</span>
+          <img id="naiveImg" alt="Raw unredacted screenshot sent to Gemini" />
+        </div>
+        <div class="comparison-col">
+          <span class="comparison-label ours">✅ Our Agent — sent to Gemini</span>
+          <img id="comparisonRedactedImg" alt="Redacted screenshot sent to Gemini" />
+        </div>
+      </div>
+
+      <table id="comparisonTable">
+        <thead>
+          <tr><th>Category</th><th>Naive Agent</th><th>Our Agent</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Face</td><td id="cmpFaceNaive">❌ Visible</td><td id="cmpFaceOurs">—</td></tr>
+          <tr><td>Password / email / phone / card / etc.</td><td id="cmpPiiNaive">❌ Visible</td><td id="cmpPiiOurs">—</td></tr>
+          <tr><td>Page structure sent to AI</td><td>✅ Sent</td><td>✅ Sent</td></tr>
+          <tr><td>Agent completed the task</td><td id="cmpTaskNaive">—</td><td id="cmpTaskOurs">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
   <!-- Demo log                                                            -->
   <!-- ------------------------------------------------------------------ -->
   <section id="logSection">
@@ -487,6 +602,26 @@
     function appendLog(msg) {
       log.textContent += `\n${new Date().toLocaleTimeString()} | ${msg}`;
       log.scrollTop = log.scrollHeight;
+    }
+
+    /**
+     * chrome.tabs.captureVisibleTab only grabs what's currently scrolled
+     * into view, so any trigger button below the fold must scroll to top
+     * first. A plain `window.scrollTo(0, 0)` runs synchronously in JS, but
+     * that's not the same as the browser having actually *painted* the new
+     * scroll position yet — the async message round-trip to the background
+     * service worker isn't a reliable enough delay to guarantee a paint
+     * happened in between (confirmed: it wasn't — the real screenshot was
+     * coming back showing wherever the page was scrolled to when the
+     * button was clicked, not the top). Waiting two animation frames after
+     * the scroll is the standard way to guarantee at least one paint has
+     * occurred before continuing.
+     */
+    function scrollToTopAndSettle() {
+      return new Promise((resolve) => {
+        window.scrollTo(0, 0);
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
     }
 
     // -------------------------------------------------------------------------
@@ -658,20 +793,16 @@
       }
     });
 
-    document.getElementById("runPipelineBtn").addEventListener("click", () => {
+    document.getElementById("runPipelineBtn").addEventListener("click", async () => {
       if (location.protocol === "file:") {
         appendLog("❌ This page was opened via file:// — Chrome extensions cannot access file:// pages by default.");
         appendLog("   Start the server (cd server && npm run dev) and open http://localhost:3000/demo/index.html instead.");
         return;
       }
 
-      // chrome.tabs.captureVisibleTab only grabs what's currently scrolled
-      // into view. Scroll to top first so the form + face image (the whole
-      // point of the screenshot) are guaranteed to actually be in frame —
-      // this is synchronous, and the real capture happens several async
-      // hops later (message round-trip to the background service worker),
-      // so there's no race.
-      window.scrollTo(0, 0);
+      // See scrollToTopAndSettle() above — must wait for an actual paint,
+      // not just call scrollTo and hope the async delay after is enough.
+      await scrollToTopAndSettle();
 
       appendLog("Triggering full agent pipeline via CustomEvent…");
 
@@ -718,6 +849,85 @@
 
     appendLog("Demo page ready. Form has " +
       document.querySelectorAll("#formSection input").length + " input fields.");
+
+    // -------------------------------------------------------------------------
+    // Privacy leakage comparison — one real screenshot, sent to Gemini two
+    // ways (raw vs redacted), both real network calls. Uses its own
+    // SIH_COMPARISON_* events so it can't cross-talk with the regular
+    // single-run pipeline above if both were ever triggered close together.
+    // -------------------------------------------------------------------------
+    let comparisonAckTimer = null;
+    let comparisonAckReceived = false;
+
+    window.addEventListener("SIH_COMPARISON_ACK", () => {
+      comparisonAckReceived = true;
+      clearTimeout(comparisonAckTimer);
+      appendLog("✅ Extension received the comparison task — capturing once, sending to Gemini two ways…");
+    });
+
+    window.addEventListener("SIH_COMPARISON_ERROR", (event) => {
+      const error = event.detail?.error ?? "unknown error";
+      appendLog(`❌ Comparison error: ${error}`);
+      if (error.includes("Extension context invalidated")) {
+        appendLog("🔄 Auto-refreshing this tab in 2s to reconnect to the extension…");
+        setTimeout(() => location.reload(), 2000);
+      }
+    });
+
+    window.addEventListener("SIH_COMPARISON_RESULT", (event) => {
+      const {
+        naiveActionCount, naiveImageDataUrl,
+        redactedActionCount, redactedImageDataUrl,
+        log: perfLog,
+      } = event.detail || {};
+
+      appendLog(`✅ Comparison complete — naive plan: ${naiveActionCount ?? 0} action(s), our plan: ${redactedActionCount ?? 0} action(s) (only ours was executed on the page).`);
+
+      document.getElementById("naiveImg").src = naiveImageDataUrl;
+      document.getElementById("comparisonRedactedImg").src = redactedImageDataUrl;
+
+      const faceRedacted = (perfLog?.faceRegions ?? 0) > 0;
+      const piiRedacted = (perfLog?.piiRegions ?? 0) > 0;
+
+      document.getElementById("cmpFaceOurs").textContent = faceRedacted
+        ? "✅ Blurred"
+        : "⚠ No face detected this run";
+      document.getElementById("cmpPiiOurs").textContent = piiRedacted
+        ? "✅ Blacked out"
+        : "⚠ No PII fields detected this run";
+      document.getElementById("cmpTaskNaive").textContent = (naiveActionCount ?? 0) > 0
+        ? `✅ ${naiveActionCount} action(s) planned`
+        : "❌ 0 actions";
+      document.getElementById("cmpTaskOurs").textContent = (redactedActionCount ?? 0) > 0
+        ? `✅ ${redactedActionCount} action(s) planned + executed`
+        : "❌ 0 actions";
+
+      document.getElementById("comparisonResult").hidden = false;
+      document.getElementById("comparisonResult").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+
+    document.getElementById("runComparisonBtn").addEventListener("click", async () => {
+      if (location.protocol === "file:") {
+        appendLog("❌ This page was opened via file:// — Chrome extensions cannot access file:// pages by default.");
+        appendLog("   Start the server (cd server && npm run dev) and open http://localhost:3000/demo/index.html instead.");
+        return;
+      }
+
+      await scrollToTopAndSettle();
+      appendLog("Triggering leakage comparison (naive vs ours) via CustomEvent…");
+
+      comparisonAckReceived = false;
+      clearTimeout(comparisonAckTimer);
+      comparisonAckTimer = setTimeout(() => {
+        if (comparisonAckReceived) return;
+        appendLog("⚠ No response from the extension after 3s. Same checklist as above: is it loaded, rebuilt, and has this tab been refreshed since?");
+      }, 3000);
+
+      window.dispatchEvent(new CustomEvent("SIH_RUN_COMPARISON", {
+        detail: { task: "Fill out the registration form with test data and submit." }
+      }));
+      appendLog("Sent SIH_RUN_COMPARISON event. This makes two real Gemini calls — may take 15-30s…");
+    });
 
     // -------------------------------------------------------------------------
     // Theme toggle — persisted to localStorage, defaults to OS preference.

@@ -93,8 +93,35 @@ export interface AgentErrorMessage {
   error: string;
 }
 
-export type BackgroundMessage = RunAgentMessage;
+/**
+ * Privacy leakage comparison: one screenshot capture, sent to the VLM two
+ * ways — raw (what a naive "just screenshot the tab" agent would send) and
+ * redacted (what this extension actually sends) — so the difference is a
+ * real, side-by-side, non-simulated result rather than a mockup. Only the
+ * redacted plan's actions are executed on the page, to avoid filling the
+ * form twice; the naive plan's action count still comes back for real,
+ * proving the cloud model handles the redacted image just as well.
+ */
+export interface RunComparisonMessage {
+  type: "RUN_COMPARISON";
+  task: string;
+}
+
+export interface ComparisonResultMessage {
+  type: "COMPARISON_RESULT";
+  naive: { actionPlan: ActionPlan; imageBase64: string };
+  redacted: { actionPlan: ActionPlan; imageBase64: string };
+  log: PerformanceLog;
+}
+
+export interface ComparisonErrorMessage {
+  type: "COMPARISON_ERROR";
+  error: string;
+}
+
+export type BackgroundMessage = RunAgentMessage | RunComparisonMessage;
 export type ContentMessage = AgentResultMessage | AgentErrorMessage;
+export type ComparisonContentMessage = ComparisonResultMessage | ComparisonErrorMessage;
 
 // ---------------------------------------------------------------------------
 // Performance / observability
@@ -113,7 +140,9 @@ export interface PerformanceLog {
   totalMs: number;            // wall-clock start → executor first action
   deviceBackend: "webgpu" | "wasm";   // which ONNX backend was used
   detectionCount: number;     // number of objects detected before redaction
-  redactedRegions: number;    // number of regions blurred/blacked out
+  redactedRegions: number;    // number of regions blurred/blacked out (faceRegions + piiRegions)
+  faceRegions: number;        // of redactedRegions, how many were faces (ML-detected or DOM-flagged)
+  piiRegions: number;         // of redactedRegions, how many were PII fields (password/email/phone/card/etc.)
   domElementCount: number;    // number of DOM elements sent to the VLM — 0 here explains an empty ActionPlan
   inferenceError?: string;    // set if the ONNX vision model threw — explains detectionCount being 0 despite a real subject in frame
   timestamp: string;          // ISO 8601
