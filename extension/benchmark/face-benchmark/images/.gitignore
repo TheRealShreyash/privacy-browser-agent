@@ -1,0 +1,7 @@
+# Real photos of people shouldn't end up in git history, even consented
+# ones — keep them local only. The folder structure itself stays tracked
+# via .gitkeep.
+*.jpg
+*.jpeg
+*.png
+*.webp

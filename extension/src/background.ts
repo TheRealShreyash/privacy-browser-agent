@@ -115,6 +115,12 @@ async function captureAndRedact(tabId: number): Promise<{
   // the race entirely, regardless of font download speed.
   await waitForFontsReady(tabId);
 
+  // Reset scroll to the top before capturing — see scrollTabToTop's doc
+  // comment. Must happen here (background), not in a triggering page's own
+  // JS, so it applies no matter what triggered the run: the demo page's
+  // button, the popup on an arbitrary real site, or anything else.
+  await scrollTabToTop(tabId);
+
   // -- Step 1: Capture tab screenshot ----------------------------------------
   const captureStart = performance.now();
   const screenshotDataUrl = await captureTab(tabId);
@@ -388,6 +394,39 @@ async function waitForFontsReady(tabId?: number): Promise<void> {
     });
   } catch (err) {
     console.warn("[BrowserAgent:bg] Failed to wait for document.fonts.ready:", err);
+  }
+}
+
+/**
+ * Scroll the target tab to the top and wait for an actual paint before
+ * returning. chrome.tabs.captureVisibleTab only grabs what's currently
+ * scrolled into view, but the DOM scan (getBoundingClientRect) reports
+ * every element's position regardless of scroll — including elements
+ * above the viewport, whose Y coordinate goes negative and gets clamped
+ * to 0 by extractPIIRegionsFromDOM's padding math. Without resetting
+ * scroll first, that produces a redaction box drawn at the top of the
+ * screenshot for a field that isn't anywhere near there.
+ *
+ * This must live here, in the background worker, not in page-level JS —
+ * a plain `window.scrollTo(0,0)` in a triggering page (like the demo
+ * page's own button) only fixes that one page. Triggering via the popup,
+ * or from any other real site, has no such page-level script at all, so
+ * the fix has to apply universally at the point where the tab is
+ * actually captured.
+ */
+async function scrollTabToTop(tabId?: number): Promise<void> {
+  if (!tabId) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () =>
+        new Promise<void>((resolve) => {
+          window.scrollTo(0, 0);
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    });
+  } catch (err) {
+    console.warn("[BrowserAgent:bg] Failed to scroll tab to top before capture:", err);
   }
 }
 

@@ -157,6 +157,51 @@ export function extractImageRegionsFromDOM(domSummary: DomElement[]): BoundingBo
     .map((el) => el.boundingBox);
 }
 
+/** Luhn checksum — distinguishes a real card number from any other 13-19 digit grouped string. */
+export function isValidLuhn(digits: string): boolean {
+  if (!/^\d{13,19}$/.test(digits)) return false;
+
+  let sum = 0;
+  let shouldDouble = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let digit = parseInt(digits[i], 10);
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return sum % 10 === 0;
+}
+
+// Verhoeff checksum — the algorithm UIDAI actually validates Aadhaar numbers
+// against. Without it, "any 12 digits grouped in 4s" is indistinguishable
+// from a real Aadhaar number — and that shape is common (it's also a
+// prefix-substring of any 16-digit card-shaped number).
+const VERHOEFF_D = [
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 0, 6, 7, 8, 9, 5], [2, 3, 4, 0, 1, 7, 8, 9, 5, 6],
+  [3, 4, 0, 1, 2, 8, 9, 5, 6, 7], [4, 0, 1, 2, 3, 9, 5, 6, 7, 8], [5, 9, 8, 7, 6, 0, 4, 3, 2, 1],
+  [6, 5, 9, 8, 7, 1, 0, 4, 3, 2], [7, 6, 5, 9, 8, 2, 1, 0, 4, 3], [8, 7, 6, 5, 9, 3, 2, 1, 0, 4],
+  [9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+];
+const VERHOEFF_P = [
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 5, 7, 6, 2, 8, 3, 0, 9, 4], [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
+  [8, 9, 1, 6, 0, 4, 3, 5, 2, 7], [9, 4, 5, 3, 1, 2, 6, 8, 7, 0], [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
+  [2, 7, 9, 3, 8, 0, 6, 4, 1, 5], [7, 0, 4, 6, 9, 1, 3, 2, 5, 8],
+];
+
+export function isValidVerhoeff(digits: string): boolean {
+  if (!/^\d{12}$/.test(digits)) return false;
+
+  let c = 0;
+  const reversed = digits.split("").reverse();
+  for (let i = 0; i < reversed.length; i++) {
+    c = VERHOEFF_D[c][VERHOEFF_P[i % 8][parseInt(reversed[i], 10)]];
+  }
+  return c === 0;
+}
+
 /** Extracts PII bounding boxes from DOM summary (password fields, email fields, etc.) */
 export function extractPIIRegionsFromDOM(domSummary: DomElement[]): BoundingBox[] {
   const piiBoxes: BoundingBox[] = [];
@@ -183,12 +228,23 @@ export function extractPIIRegionsFromDOM(domSummary: DomElement[]): BoundingBox[
     "aadhaar", "aadhar", "pan", "ssn", "otp", "cvv", "card", "passport",
   ];
 
-  const PII_TEXT_PATTERNS = [
-    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/,  // email
-    /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/,                   // phone (10-digit)
-    /\b\d{4}\s?\d{4}\s?\d{4}\b/,                           // Aadhaar (12-digit, grouped)
-    /\b[A-Z]{5}\d{4}[A-Z]\b/,                              // PAN (India)
-    /\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{1,4}\b/,           // card number (13-19 digit, grouped)
+  // Any 13-19 digit grouped number superficially looks like a card number —
+  // order references, tracking numbers, invoice IDs, etc. all match the
+  // shape. A Luhn checksum is what actually distinguishes a real card
+  // number from an arbitrary digit string, so it's a required validator
+  // here, not optional — without it this pattern over-redacts constantly.
+  const PII_TEXT_PATTERNS: Array<{ pattern: RegExp; validate?: (matchedText: string) => boolean }> = [
+    { pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/ },  // email
+    { pattern: /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/ },                   // phone (10-digit)
+    {
+      pattern: /\b\d{4}\s?\d{4}\s?\d{4}\b/,                             // Aadhaar (12-digit, grouped)
+      validate: (matchedText) => isValidVerhoeff(matchedText.replace(/\D/g, "")),
+    },
+    { pattern: /\b[A-Z]{5}\d{4}[A-Z]\b/ },                              // PAN (India)
+    {
+      pattern: /\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{1,4}\b/,             // card-shaped number
+      validate: (matchedText) => isValidLuhn(matchedText.replace(/\D/g, "")),
+    },
   ];
 
   for (const el of domSummary) {
@@ -216,8 +272,12 @@ export function extractPIIRegionsFromDOM(domSummary: DomElement[]): BoundingBox[
     }
 
     if (!isPII && el.text) {
-      if (PII_TEXT_PATTERNS.some((pattern) => pattern.test(el.text!))) {
-        isPII = true;
+      for (const { pattern, validate } of PII_TEXT_PATTERNS) {
+        const match = el.text.match(pattern);
+        if (match && (!validate || validate(match[0]))) {
+          isPII = true;
+          break;
+        }
       }
     }
 

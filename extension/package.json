@@ -7,7 +7,9 @@
     "build": "webpack --mode production",
     "dev": "webpack --mode development --watch",
     "build:dev": "webpack --mode development",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "benchmark:dom": "tsx benchmark/run-dom-benchmark.ts",
+    "benchmark:faces": "tsx benchmark/face-benchmark/run-face-benchmark.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.5.2"
@@ -16,6 +18,7 @@
     "@types/chrome": "^0.0.320",
     "copy-webpack-plugin": "^12.0.2",
     "ts-loader": "^9.5.1",
+    "tsx": "^4.23.13",
     "typescript": "^5.8.3",
     "webpack": "^5.99.9",
     "webpack-cli": "^6.0.1"
