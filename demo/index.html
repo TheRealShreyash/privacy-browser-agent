@@ -4,40 +4,167 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SIH26171 Demo — Privacy Browser Agent</title>
+
+  <!-- Apply saved/preferred theme before first paint, to avoid a flash of the wrong theme -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("sih-theme");
+        var theme = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --font-display: "Playfair Display", Georgia, serif;
+      --font-mono: "JetBrains Mono", "Fira Code", Consolas, monospace;
+      --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+      --ink: #0a0a0a; /* theme-invariant near-black — always-dark chrome (CTA button, download link) */
+
+      --bg: #fdfbf3;
+      --aurora-1: rgba(250, 204, 21, .20);
+      --aurora-2: rgba(120, 113, 108, .07);
+      --surface: #ffffff;
+      --border: #e8e1c8;
+      --text: #1c1917;
+      --text-muted: #6b6558;
+      --heading: #0a0a0a;
+      --accent: #eab308;
+      --accent-2: #ca8a04;
+      --accent-glow: rgba(234, 179, 8, .55);
+      --accent-2-glow: rgba(202, 138, 4, .55);
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --danger-border: #fecaca;
+      --log-bg: #0a0a0a;
+      --log-text: #facc15;
+      --input-bg: #fffefb;
+      --shadow-card: 0 1px 3px rgba(20, 15, 0, .07);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0a0a0a;
+      --aurora-1: rgba(250, 204, 21, .13);
+      --aurora-2: rgba(202, 138, 4, .11);
+      --surface: #18150f;
+      --border: #332c1a;
+      --text: #f2ecd9;
+      --text-muted: #a89f8a;
+      --heading: #fefce8;
+      --accent: #facc15;
+      --accent-2: #eab308;
+      --accent-glow: rgba(250, 204, 21, .55);
+      --accent-2-glow: rgba(234, 179, 8, .55);
+      --danger: #f87171;
+      --danger-bg: #2a1414;
+      --danger-border: #5c1f1f;
+      --log-bg: #050505;
+      --log-text: #fde047;
+      --input-bg: #15120c;
+      --shadow-card: 0 1px 3px rgba(0, 0, 0, .5);
+    }
+
     body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #f8fafc;
-      color: #1e293b;
+      font-family: var(--font-body);
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(circle at 12% -10%, var(--aurora-1), transparent 45%),
+        radial-gradient(circle at 92% 0%, var(--aurora-2), transparent 40%);
+      background-attachment: fixed;
+      color: var(--text);
       padding: 32px;
       max-width: 900px;
       margin: 0 auto;
+      min-height: 100vh;
+      transition: background-color .35s ease, color .35s ease;
     }
 
-    h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
-    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+    h1 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      letter-spacing: .2px;
+      background: linear-gradient(95deg, var(--heading) 30%, var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; transition: color .3s ease; }
 
-    section { margin-bottom: 40px; }
-    h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #334155; }
+    section { margin-bottom: 40px; opacity: 0; animation: fadeInUp .6s ease forwards; }
+    .top-row #formSection { animation-delay: .05s; }
+    .top-row #faceSection { animation-delay: .15s; }
+    #canvasSection { animation-delay: .25s; }
+    #logSection { animation-delay: .35s; }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    h2 {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      transition: color .3s ease;
+    }
+
+    /* ---- Theme toggle ---- */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 50;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: var(--shadow-card);
+      transition: transform .18s ease, box-shadow .25s ease, background-color .3s ease, color .3s ease, border-color .3s ease;
+    }
+    .theme-toggle:hover { transform: translateY(-2px); box-shadow: 0 0 18px var(--accent-glow); }
 
     /* ---- Form section ---- */
     .form-card {
-      background: #fff;
-      border: 1px solid #e2e8f0;
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 24px;
       max-width: 420px;
+      box-shadow: var(--shadow-card);
+      transition: background-color .3s ease, border-color .3s ease, box-shadow .3s ease;
     }
 
     .form-card label {
       display: block;
       font-size: 13px;
       font-weight: 500;
-      color: #475569;
+      color: var(--text-muted);
       margin-bottom: 5px;
       margin-top: 16px;
+      transition: color .3s ease;
     }
 
     .form-card label:first-child { margin-top: 0; }
@@ -45,27 +172,32 @@
     .form-card input {
       width: 100%;
       padding: 9px 12px;
-      border: 1px solid #cbd5e1;
+      border: 1px solid var(--border);
       border-radius: 7px;
       font-size: 14px;
+      font-family: var(--font-body);
+      background: var(--input-bg);
+      color: var(--text);
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color .15s ease, box-shadow .15s ease, background-color .3s ease, color .3s ease;
     }
 
-    .form-card input:focus { border-color: #3b82f6; }
+    .form-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 
     .form-card button[type=submit] {
       margin-top: 20px;
       width: 100%;
       padding: 10px;
-      background: #3b82f6;
-      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: var(--ink);
       border: none;
       border-radius: 8px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
+      transition: transform .18s ease, box-shadow .18s ease;
     }
+    .form-card button[type=submit]:hover { transform: translateY(-1px); box-shadow: 0 0 20px var(--accent-glow); }
 
     /* ---- Form + Face side by side, so both fit in one screenshot without scrolling ---- */
     .top-row {
@@ -91,14 +223,25 @@
       height: 160px;
       object-fit: cover;
       border-radius: 12px;
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--border);
+      transition: border-color .3s ease;
     }
 
     .face-info {
       max-width: 100%;
       font-size: 13px;
-      color: #64748b;
+      color: var(--text-muted);
       line-height: 1.6;
+      transition: color .3s ease;
+    }
+
+    .face-info label {
+      display: block;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
     }
 
     /* ---- Canvas demo section ---- */
@@ -116,41 +259,90 @@
     }
 
     .canvas-wrap span {
+      font-family: var(--font-mono);
       font-size: 12px;
       font-weight: 600;
-      color: #64748b;
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
     canvas {
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--border);
       border-radius: 8px;
       display: block;
+      transition: border-color .3s ease;
     }
 
     /* ---- Controls ---- */
     .controls { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
 
     .controls button {
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      border: none;
+      transition: transform .18s ease, box-shadow .18s ease, background .3s ease;
+    }
+    .controls button:hover { transform: translateY(-2px); }
+
+    #runPipelineBtn {
+      background: linear-gradient(135deg, var(--ink), #262016);
+      color: var(--accent);
+      animation: glowPulse 2.6s ease-in-out infinite;
+    }
+    #runPipelineBtn:hover { box-shadow: 0 0 26px var(--accent-glow); }
+
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 0 6px var(--accent-glow); }
+      50%      { box-shadow: 0 0 22px var(--accent-glow); }
+    }
+
+    #runRedactionBtn { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--ink); }
+    #runRedactionBtn:hover { box-shadow: 0 0 22px var(--accent-2-glow); }
+
+    /* ---- Real pipeline result card ---- */
+    #realResultCard {
+      margin-top: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: var(--shadow-card);
+      transition: background-color .3s ease, border-color .3s ease;
+      animation: fadeInUp .5s ease both;
+    }
+    #realResultCard h2 { margin-bottom: 4px; }
+    #realResultCard p { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+    #realResultCard img {
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+    #realResultCard a {
+      display: inline-block;
+      margin-top: 14px;
       padding: 9px 18px;
+      background: linear-gradient(135deg, var(--ink), #262016);
+      color: var(--accent);
       border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
-      cursor: pointer;
-      border: none;
+      font-family: var(--font-mono);
+      text-decoration: none;
+      transition: transform .18s ease, box-shadow .18s ease;
     }
-
-    #runPipelineBtn { background: #0f172a; color: #f8fafc; }
-    #runPipelineBtn:hover { background: #1e293b; }
-    #runRedactionBtn { background: #7c3aed; color: #fff; }
-    #runRedactionBtn:hover { background: #6d28d9; }
+    #realResultCard a:hover { transform: translateY(-1px); box-shadow: 0 0 20px var(--accent-2-glow); }
 
     /* ---- Log ---- */
     #demoLog {
-      background: #0f172a;
-      color: #a3e635;
-      font-family: monospace;
+      background: var(--log-bg);
+      color: var(--log-text);
+      font-family: var(--font-mono);
       font-size: 12px;
       line-height: 1.7;
       padding: 16px;
@@ -159,19 +351,23 @@
       min-height: 80px;
       max-height: 200px;
       overflow-y: auto;
+      box-shadow: 0 0 0 1px var(--border), var(--shadow-card);
+      transition: background-color .3s ease, box-shadow .3s ease;
     }
 
     /* ---- PII indicators ---- */
     .pii-badge {
       display: inline-block;
-      background: #fef2f2;
-      color: #dc2626;
-      border: 1px solid #fecaca;
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid var(--danger-border);
       border-radius: 5px;
+      font-family: var(--font-mono);
       font-size: 11px;
       font-weight: 600;
       padding: 2px 8px;
       margin-left: 8px;
+      transition: background-color .3s ease, color .3s ease, border-color .3s ease;
     }
   </style>
 </head>
@@ -181,6 +377,8 @@
   <p class="subtitle">
     On-device visual perception with local PII redaction. Run the extension on this page to see the agent in action.
   </p>
+
+  <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle light/dark theme">🌙 Dark</button>
 
   <!-- ------------------------------------------------------------------ -->
   <!-- Form + Face side by side: chrome.tabs.captureVisibleTab only grabs  -->
@@ -234,9 +432,7 @@
         on real photos, not line art) — upload a real one to see live
         detection fire.
         <br /><br />
-        <label for="facePhotoInput" style="display:block; font-weight:600; color:#475569; margin-bottom:6px;">
-          Upload a real photo:
-        </label>
+        <label for="facePhotoInput">Upload a real photo:</label>
         <input type="file" id="facePhotoInput" accept="image/*" />
       </div>
     </div>
@@ -269,13 +465,11 @@
          Shown full-width (not crammed into the small canvases above,
          which are only for the standalone mockup) + a real download so
          it can be inspected at full resolution. Hidden until a real run completes. -->
-    <div id="realResultCard" hidden style="margin-top:24px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
-      <h2 style="margin-bottom:4px;">Real Redacted Image (actually sent to Gemini)</h2>
-      <p style="font-size:13px; color:#64748b; margin-bottom:14px;">This is the exact PNG your device transmitted for this run — nothing more.</p>
-      <img id="realResultImg" style="max-width:100%; border-radius:8px; border:1px solid #e2e8f0; display:block;" alt="Redacted screenshot actually sent to the VLM" />
-      <a id="realResultDownload" style="display:inline-block; margin-top:14px; padding:9px 18px; background:#0f172a; color:#f8fafc; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none;">
-        ⬇ Download full-resolution PNG
-      </a>
+    <div id="realResultCard" hidden>
+      <h2>Real Redacted Image (actually sent to Gemini)</h2>
+      <p>This is the exact PNG your device transmitted for this run — nothing more.</p>
+      <img id="realResultImg" alt="Redacted screenshot actually sent to the VLM" />
+      <a id="realResultDownload">⬇ Download full-resolution PNG</a>
     </div>
   </section>
 
@@ -524,6 +718,24 @@
 
     appendLog("Demo page ready. Form has " +
       document.querySelectorAll("#formSection input").length + " input fields.");
+
+    // -------------------------------------------------------------------------
+    // Theme toggle — persisted to localStorage, defaults to OS preference.
+    // -------------------------------------------------------------------------
+    const themeToggleBtn = document.getElementById("themeToggle");
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      try { localStorage.setItem("sih-theme", theme); } catch (e) {}
+      themeToggleBtn.textContent = theme === "dark" ? "☀️ Light" : "🌙 Dark";
+    }
+
+    setTheme(document.documentElement.getAttribute("data-theme") || "light");
+
+    themeToggleBtn.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme");
+      setTheme(current === "dark" ? "light" : "dark");
+    });
   </script>
 </body>
 </html>

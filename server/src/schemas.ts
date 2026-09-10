@@ -29,6 +29,7 @@ export const DomElementSchema = z.object({
   selector: z.string().max(200).optional(),
   role: z.string().optional(),
   type: z.string().max(32).optional(),
+  autocomplete: z.string().max(50).optional(),
   boundingBox: BoundingBoxSchema,
   text: z.string().max(120).optional(),
 });

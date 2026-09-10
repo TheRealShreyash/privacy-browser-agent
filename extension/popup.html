@@ -4,15 +4,36 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Browser Agent</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --font-display: "Playfair Display", Georgia, serif;
+      --font-mono: "JetBrains Mono", "Fira Code", Consolas, monospace;
+      --font-body: system-ui, -apple-system, sans-serif;
+
+      --bg: #0a0a0a;
+      --surface: #15120c;
+      --surface-2: #1c1712;
+      --border: #332c1a;
+      --text: #f2ecd9;
+      --text-muted: #a89f8a;
+      --accent: #facc15;
+      --accent-2: #eab308;
+      --accent-glow: rgba(250, 204, 21, .55);
+    }
+
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: var(--font-body);
       width: 340px;
       min-height: 200px;
-      background: #0f172a;
-      color: #e2e8f0;
+      background: var(--bg);
+      color: var(--text);
       padding: 16px;
     }
 
@@ -24,69 +45,130 @@
     }
 
     header h1 {
-      font-size: 15px;
-      font-weight: 600;
-      color: #f8fafc;
+      font-family: var(--font-display);
+      font-size: 17px;
+      font-weight: 700;
+      background: linear-gradient(95deg, var(--text) 30%, var(--accent));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
     }
 
     .badge {
+      font-family: var(--font-mono);
       font-size: 10px;
-      background: #1e40af;
-      color: #bfdbfe;
-      padding: 2px 7px;
+      font-weight: 600;
+      background: var(--surface-2);
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
       border-radius: 99px;
     }
 
     textarea {
       width: 100%;
       height: 72px;
-      background: #1e293b;
-      border: 1px solid #334155;
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      color: #f1f5f9;
+      color: var(--text);
+      font-family: var(--font-body);
       font-size: 13px;
       padding: 8px 10px;
       resize: none;
       outline: none;
       line-height: 1.5;
+      transition: border-color .15s ease, box-shadow .15s ease;
     }
 
-    textarea:focus { border-color: #3b82f6; }
-    textarea::placeholder { color: #64748b; }
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(250, 204, 21, .18); }
+    textarea::placeholder { color: var(--text-muted); }
 
     button#runBtn {
       margin-top: 10px;
       width: 100%;
-      padding: 9px;
-      background: #3b82f6;
-      color: #fff;
-      border: none;
+      padding: 10px;
+      background: linear-gradient(135deg, #000, #262016);
+      color: var(--accent);
+      border: 1px solid var(--border);
       border-radius: 8px;
+      font-family: var(--font-mono);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: transform .15s ease, box-shadow .15s ease;
+      animation: glowPulse 2.6s ease-in-out infinite;
     }
 
-    button#runBtn:hover { background: #2563eb; }
-    button#runBtn:disabled { background: #475569; cursor: not-allowed; }
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 0 4px var(--accent-glow); }
+      50%      { box-shadow: 0 0 16px var(--accent-glow); }
+    }
+
+    button#runBtn:hover { transform: translateY(-1px); box-shadow: 0 0 20px var(--accent-glow); }
+    button#runBtn:disabled { background: var(--surface-2); color: var(--text-muted); cursor: not-allowed; animation: none; box-shadow: none; }
 
     .status {
       margin-top: 10px;
       font-size: 12px;
+      font-family: var(--font-mono);
       padding: 7px 10px;
       border-radius: 6px;
       min-height: 32px;
     }
 
-    .status-info    { background: #1e3a5f; color: #93c5fd; }
+    .status-info    { background: #1c1712; color: var(--accent); }
     .status-success { background: #14532d; color: #86efac; }
-    .status-warn    { background: #451a03; color: #fcd34d; }
+    .status-warn    { background: #3a2a05; color: #fcd34d; }
     .status-error   { background: #450a0a; color: #fca5a5; }
+
+    /* ---- Redacted image proof (parity with the demo page) ---- */
+    .result-section {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--surface);
+    }
+
+    .result-section .section-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    #resultImg {
+      display: block;
+      width: 100%;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    #resultDownload {
+      display: inline-block;
+      width: 100%;
+      text-align: center;
+      padding: 7px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #0a0a0a;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: box-shadow .15s ease;
+    }
+    #resultDownload:hover { box-shadow: 0 0 14px var(--accent-glow); }
 
     .log-section {
       margin-top: 14px;
-      border-top: 1px solid #334155;
+      border-top: 1px solid var(--border);
       padding-top: 12px;
     }
 
@@ -98,30 +180,33 @@
     }
 
     .log-header span {
+      font-family: var(--font-mono);
       font-size: 11px;
       font-weight: 600;
-      color: #94a3b8;
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
     button#refreshLog {
+      font-family: var(--font-mono);
       font-size: 11px;
       background: transparent;
-      border: 1px solid #334155;
-      color: #94a3b8;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
       padding: 3px 8px;
       border-radius: 5px;
       cursor: pointer;
+      transition: border-color .15s ease, color .15s ease;
     }
 
-    button#refreshLog:hover { border-color: #64748b; color: #cbd5e1; }
+    button#refreshLog:hover { border-color: var(--accent); color: var(--accent); }
 
     pre#logOutput {
-      font-family: "Fira Code", "Cascadia Code", monospace;
+      font-family: var(--font-mono);
       font-size: 11px;
       line-height: 1.7;
-      color: #94a3b8;
+      color: var(--text-muted);
       white-space: pre-wrap;
       word-break: break-word;
     }
@@ -141,6 +226,13 @@
   <button id="runBtn">▶ Run Agent</button>
 
   <div id="status" class="status status-info">Ready. Enter a task and click Run.</div>
+
+  <!-- Real proof of what left the device — hidden until a run completes -->
+  <div id="resultSection" class="result-section" hidden>
+    <span class="section-label">Redacted image sent to the VLM</span>
+    <img id="resultImg" alt="Redacted screenshot actually sent to the VLM" />
+    <a id="resultDownload">⬇ Download full-resolution PNG</a>
+  </div>
 
   <div class="log-section">
     <div class="log-header">

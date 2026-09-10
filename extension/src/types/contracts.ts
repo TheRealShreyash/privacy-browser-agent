@@ -35,6 +35,9 @@ export interface DomElement {
    *  Never the field's value — used as a reliable PII signal since password
    *  field *text* is intentionally omitted below. */
   type?: string;
+  /** autocomplete attribute (e.g. "cc-number", "one-time-code", "bday") —
+   *  a strong PII-category signal the browser itself already exposes. */
+  autocomplete?: string;
   boundingBox: BoundingBox;
   text?: string;         // visible label / inner text (truncated to 120 chars) — omitted for password fields
 }

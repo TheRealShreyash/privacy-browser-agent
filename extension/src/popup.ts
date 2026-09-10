@@ -13,6 +13,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const statusEl = document.getElementById("status") as HTMLDivElement;
   const logEl = document.getElementById("logOutput") as HTMLPreElement;
   const refreshLogBtn = document.getElementById("refreshLog") as HTMLButtonElement;
+  const resultSection = document.getElementById("resultSection") as HTMLDivElement;
+  const resultImg = document.getElementById("resultImg") as HTMLImageElement;
+  const resultDownload = document.getElementById("resultDownload") as HTMLAnchorElement;
 
   // Load last performance log on popup open
   refreshPerfLog();
@@ -40,6 +43,9 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (response?.type === "AGENT_RESULT") {
         const actionCount = response.actionPlan?.actions?.length ?? 0;
         setStatus(`✅ Done — ${actionCount} action(s) executed.`, "success");
+        if (response.redactedImageBase64) {
+          showRedactedImage(response.redactedImageBase64);
+        }
         await refreshPerfLog();
       } else {
         setStatus("⚠️ Unexpected response from background.", "warn");
@@ -55,6 +61,16 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshLogBtn.addEventListener("click", () => {
     refreshPerfLog();
   });
+
+  /** Show the exact redacted image bytes that were sent to the VLM — same
+   *  proof the demo page's download panel gives, but for any real site. */
+  function showRedactedImage(base64: string): void {
+    const dataUrl = `data:image/png;base64,${base64}`;
+    resultImg.src = dataUrl;
+    resultDownload.href = dataUrl;
+    resultDownload.download = `redacted-screenshot-${Date.now()}.png`;
+    resultSection.hidden = false;
+  }
 
   async function refreshPerfLog() {
     const log = await getLastLog();

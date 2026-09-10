@@ -167,10 +167,28 @@ export function extractPIIRegionsFromDOM(domSummary: DomElement[]): BoundingBox[
   // have no other signal to redact by.
   const PII_INPUT_TYPES = new Set(["password", "email", "tel"]);
 
-  const PII_ROLE_KEYWORDS = ["password", "email", "tel", "credit-card", "secret"];
+  // The `autocomplete` attribute is a browser-standardized PII taxonomy —
+  // https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#autofill-detail-tokens
+  // Cheaper and more reliable than guessing from field labels.
+  const PII_AUTOCOMPLETE_TOKENS = new Set([
+    "cc-number", "cc-csc", "cc-exp", "cc-exp-month", "cc-exp-year", "cc-name",
+    "current-password", "new-password", "one-time-code",
+    "email", "tel", "tel-national", "tel-country-code",
+    "bday", "bday-day", "bday-month", "bday-year",
+    "street-address", "address-line1", "address-line2", "postal-code",
+  ]);
+
+  const PII_ROLE_KEYWORDS = [
+    "password", "email", "tel", "credit-card", "secret",
+    "aadhaar", "aadhar", "pan", "ssn", "otp", "cvv", "card", "passport",
+  ];
+
   const PII_TEXT_PATTERNS = [
-    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/, // email regex
-    /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/,                  // phone regex
+    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/,  // email
+    /\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/,                   // phone (10-digit)
+    /\b\d{4}\s?\d{4}\s?\d{4}\b/,                           // Aadhaar (12-digit, grouped)
+    /\b[A-Z]{5}\d{4}[A-Z]\b/,                              // PAN (India)
+    /\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{1,4}\b/,           // card number (13-19 digit, grouped)
   ];
 
   for (const el of domSummary) {
@@ -178,6 +196,10 @@ export function extractPIIRegionsFromDOM(domSummary: DomElement[]): BoundingBox[
 
     if (el.tag === "input") {
       if (el.type && PII_INPUT_TYPES.has(el.type.toLowerCase())) {
+        isPII = true;
+      }
+
+      if (el.autocomplete && PII_AUTOCOMPLETE_TOKENS.has(el.autocomplete.toLowerCase())) {
         isPII = true;
       }
 

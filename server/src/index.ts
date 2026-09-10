@@ -13,6 +13,7 @@ import path from "path";
 import { ZodError } from "zod";
 import { SanitizedContextSchema } from "./schemas";
 import { callVLM } from "./vlm";
+import { sanitizeDomSummary } from "./sanitize";
 
 dotenv.config();
 
@@ -87,7 +88,7 @@ app.post("/analyze", async (req: Request, res: Response, next: NextFunction) => 
     return;
   }
 
-  const context = parseResult.data;
+  let context = parseResult.data;
   const payloadKB = (JSON.stringify(context).length / 1024).toFixed(1);
 
   console.log(
@@ -96,8 +97,19 @@ app.post("/analyze", async (req: Request, res: Response, next: NextFunction) => 
     ` | payload=${payloadKB} KB`
   );
 
+  // 2. Defense-in-depth: independently re-scan domSummary for PII the
+  // client-side redaction should already have removed, before it ever
+  // reaches the VLM prompt. Never assume the client did this correctly.
+  const { domSummary: sanitizedDomSummary, leaksCaught } = sanitizeDomSummary(context.domSummary);
+  if (leaksCaught > 0) {
+    console.warn(
+      `[Server] ⚠️  Server-side redaction caught ${leaksCaught} PII match(es) that the client should have already removed.`
+    );
+    context = { ...context, domSummary: sanitizedDomSummary };
+  }
+
   try {
-    // 2. Call VLM
+    // 3. Call VLM
     const actionPlan = await callVLM(context);
 
     const elapsedMs = Date.now() - requestStart;

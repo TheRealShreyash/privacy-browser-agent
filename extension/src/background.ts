@@ -2,7 +2,7 @@
  * background.ts — Service worker for SIH26171 browser agent.
  *
  * Implements:
- *  1. Transformers.js ONNX vision model (`onnx-community/yolov10n`) (D2)
+ *  1. Transformers.js ONNX vision model (`Xenova/yolos-tiny`) (D2)
  *  2. WebGPU with automatic WASM fallback (D2)
  *  3. OffscreenCanvas PII Redaction (D3)
  *  4. Express + VLM endpoint integration (D4)
@@ -77,6 +77,16 @@ async function runAgentPipeline(
   const log: Partial<PerformanceLog> = {
     timestamp: new Date().toISOString(),
   };
+
+  // -- Step 0: Wait for web fonts to finish loading ---------------------------
+  // A page using web fonts (e.g. our own demo page's Google Fonts) reflows
+  // once they swap in for the fallback font. If that reflow happens between
+  // the screenshot capture and the DOM scan below, the two measurements are
+  // taken against two different layouts — redaction boxes then get drawn at
+  // positions that don't match where anything actually is anymore. Forcing
+  // both measurements to happen only after fonts have settled eliminates
+  // the race entirely, regardless of font download speed.
+  await waitForFontsReady(tabId);
 
   // -- Step 1: Capture tab screenshot ----------------------------------------
   const captureStart = performance.now();
@@ -175,9 +185,19 @@ async function getDetector(): Promise<{
 
   const start = performance.now();
 
+  // yolov10 is NOT a supported architecture in @huggingface/transformers'
+  // object-detection pipeline (only detr/rt_detr/rf_detr/d_fine/yolos are
+  // registered — see MODEL_FOR_OBJECT_DETECTION_MAPPING_NAMES in the
+  // library). yolos-tiny is the library's own reference object-detection
+  // model (used in Xenova's official WebGPU object-detection demo) — a
+  // ViT-based detector, which also fits the problem statement's framing of
+  // a local "Vision Transformer (ViT) or equivalent" better than a
+  // CNN-based YOLOv10 would have anyway.
+  const MODEL_ID = "Xenova/yolos-tiny";
+
   try {
     console.log("[BrowserAgent:bg] Loading ONNX vision model with WebGPU backend...");
-    detector = await (pipeline as any)("object-detection", "onnx-community/yolov10n", {
+    detector = await (pipeline as any)("object-detection", MODEL_ID, {
       device: "webgpu",
     });
     activeBackend = "webgpu";
@@ -186,7 +206,7 @@ async function getDetector(): Promise<{
       "[BrowserAgent:bg] WebGPU unavailable/failed. Falling back to WASM:",
       webgpuErr
     );
-    detector = await (pipeline as any)("object-detection", "onnx-community/yolov10n", {
+    detector = await (pipeline as any)("object-detection", MODEL_ID, {
       device: "wasm",
     });
     activeBackend = "wasm";
@@ -200,6 +220,13 @@ async function getDetector(): Promise<{
   return { detector, backend: activeBackend, loadMs: cachedLoadMs };
 }
 
+// Caps the resolution fed to the on-device model. The problem statement's
+// core constraint is that local hardware has far less compute than a
+// server — full-resolution (1080p+) inference on every run ignores that.
+// Detection boxes are normalized 0..1 regardless of input size, so
+// downscaling here is a pure speed/memory win with no downstream changes.
+const MAX_INFERENCE_DIMENSION = 640;
+
 async function runInference(screenshotDataUrl: string): Promise<{
   detections: Detection[];
   backend: "webgpu" | "wasm";
@@ -208,7 +235,17 @@ async function runInference(screenshotDataUrl: string): Promise<{
 }> {
   try {
     const { detector: model, backend, loadMs } = await getDetector();
-    const image = await RawImage.fromURL(screenshotDataUrl);
+    let image = await RawImage.fromURL(screenshotDataUrl);
+
+    const longestSide = Math.max(image.width, image.height);
+    if (longestSide > MAX_INFERENCE_DIMENSION) {
+      const scale = MAX_INFERENCE_DIMENSION / longestSide;
+      image = await image.resize(
+        Math.round(image.width * scale),
+        Math.round(image.height * scale)
+      );
+    }
+
     const output = await model(image, { threshold: 0.25 });
 
     const rawDetections = output as Array<{
@@ -239,6 +276,24 @@ async function runInference(screenshotDataUrl: string): Promise<{
 // ---------------------------------------------------------------------------
 // Screen Capture & Tab Messaging
 // ---------------------------------------------------------------------------
+
+/** Blocks until the tab's web fonts have finished loading (or 1.5s elapses,
+ *  as a safety cap against a font request that hangs/fails to resolve). */
+async function waitForFontsReady(tabId?: number): Promise<void> {
+  if (!tabId) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () =>
+        Promise.race([
+          document.fonts.ready.then(() => undefined),
+          new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+        ]),
+    });
+  } catch (err) {
+    console.warn("[BrowserAgent:bg] Failed to wait for document.fonts.ready:", err);
+  }
+}
 
 async function captureTab(_tabId?: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -294,6 +349,7 @@ async function getDomSummaryFromTab(tabId?: number): Promise<DomScanResult> {
           selector?: string;
           role?: string;
           type?: string;
+          autocomplete?: string;
           boundingBox: { x: number; y: number; width: number; height: number };
           text?: string;
         }> = [];
@@ -335,6 +391,7 @@ async function getDomSummaryFromTab(tabId?: number): Promise<DomScanResult> {
             selector,
             role: el.getAttribute("role") ?? undefined,
             type: (el as HTMLInputElement).type || undefined,
+            autocomplete: el.getAttribute("autocomplete") || undefined,
             boundingBox: {
               x: Math.round(rect.x),
               y: Math.round(rect.y),
