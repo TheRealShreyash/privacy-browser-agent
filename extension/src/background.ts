@@ -209,7 +209,7 @@ async function runAgentPipeline(
   // -- Step 6: Execute actions directly on active tab DOM (D5) ---------------
   if (actionPlan.actions.length > 0) {
     console.log(`[BrowserAgent:bg] Executing ${actionPlan.actions.length} action(s) on tab ${tabId}...`);
-    await executeActionsOnTab(tabId, actionPlan.actions);
+    await executeActionsOnTab(tabId, actionPlan.actions, domSummary);
   } else {
     console.warn(`[BrowserAgent:bg] No actions returned (actions=${actionPlan.actions.length})`);
   }
@@ -258,7 +258,7 @@ async function runComparisonPipeline(
 
   if (redactedActionPlan.actions.length > 0) {
     console.log(`[BrowserAgent:bg] Executing redacted-mode plan (${redactedActionPlan.actions.length} action(s)) on tab ${tabId}...`);
-    await executeActionsOnTab(tabId, redactedActionPlan.actions);
+    await executeActionsOnTab(tabId, redactedActionPlan.actions, domSummary);
   }
 
   return {
@@ -474,9 +474,28 @@ async function getDomSummaryFromTab(tabId?: number): Promise<DomScanResult> {
           "[role=textbox]",
           "label",
           "img",
+          "iframe",
         ].join(", ");
 
-        const elements = document.querySelectorAll<HTMLElement>(INTERACTIVE_SELECTORS);
+        // Recursively collect matching elements, descending into any OPEN
+        // shadow roots along the way. Plain querySelectorAll cannot see
+        // into shadow DOM at all, and shadow DOM is common in modern
+        // component libraries (Material, Shoelace, many design systems) —
+        // without this, every input inside one is invisible to us, both
+        // for redaction and for the agent's action targeting. Shadow roots
+        // live in the SAME document/coordinate system as the light DOM
+        // (unlike iframes), so no coordinate translation is needed here.
+        function collectElements(root: ParentNode): HTMLElement[] {
+          const found = Array.from(root.querySelectorAll<HTMLElement>(INTERACTIVE_SELECTORS));
+          root.querySelectorAll<HTMLElement>("*").forEach((el) => {
+            if (el.shadowRoot) {
+              found.push(...collectElements(el.shadowRoot));
+            }
+          });
+          return found;
+        }
+
+        const elements = collectElements(document);
         const summary: Array<{
           tag: string;
           id?: string;
@@ -496,6 +515,17 @@ async function getDomSummaryFromTab(tabId?: number): Promise<DomScanResult> {
           let selector = el.tagName.toLowerCase();
           if (el.id) {
             selector = `#${el.id}`;
+          } else if (el.getAttribute("data-testid")) {
+            // Prefer test-automation attributes when present — real sites
+            // built with Cypress/Playwright/Testing Library coverage
+            // already tag elements with these specifically because
+            // framework-managed DOMs (React/Vue/Angular) often have no
+            // stable id/name at all. Far more reliable than guessing.
+            selector = `[data-testid="${el.getAttribute("data-testid")}"]`;
+          } else if (el.getAttribute("data-cy")) {
+            selector = `[data-cy="${el.getAttribute("data-cy")}"]`;
+          } else if (el.getAttribute("data-qa")) {
+            selector = `[data-qa="${el.getAttribute("data-qa")}"]`;
           } else if (el.getAttribute("name")) {
             selector = `[name="${el.getAttribute("name")}"]`;
           } else if (el.getAttribute("placeholder")) {
@@ -556,11 +586,39 @@ async function getDomSummaryFromTab(tabId?: number): Promise<DomScanResult> {
   }
 }
 
-async function executeActionsOnTab(tabId: number, actions: Action[]): Promise<void> {
+/**
+ * Executes the ActionPlan on the real tab. `fallbackBoxes` maps each
+ * action's selector to the on-screen position it was recorded at during
+ * the DOM scan — used only when `document.querySelector` comes back empty
+ * (unstable/generated selectors on framework-heavy sites, or an element
+ * living inside a shadow root, which querySelector cannot reach at all).
+ * `elementFromPoint` hit-tests the actual rendered tree, so it finds the
+ * real element regardless of shadow boundaries — the same reason
+ * screenshot-based computer-use agents click by coordinate in the first
+ * place. Coordinates are only trustworthy if the page hasn't scrolled
+ * since the scan; that holds for the first action in a plan, but an
+ * earlier action's own scrollIntoView can invalidate it for later ones —
+ * an accepted limit for a last-resort fallback, not the primary path.
+ */
+async function executeActionsOnTab(
+  tabId: number,
+  actions: Action[],
+  domSummary: SanitizedContext["domSummary"] = []
+): Promise<void> {
+  const fallbackBoxes: Record<string, { x: number; y: number; width: number; height: number }> = {};
+  for (const el of domSummary) {
+    if (el.selector && !fallbackBoxes[el.selector]) {
+      fallbackBoxes[el.selector] = el.boundingBox;
+    }
+  }
+
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
-      func: async (actionsToRun: Action[]) => {
+      func: async (
+        actionsToRun: Action[],
+        fallbackBoxesArg: Record<string, { x: number; y: number; width: number; height: number }>
+      ) => {
         function delay(ms: number) {
           return new Promise((r) => setTimeout(r, ms));
         }
@@ -568,9 +626,25 @@ async function executeActionsOnTab(tabId: number, actions: Action[]): Promise<vo
         for (const action of actionsToRun) {
           try {
             console.log("[BrowserAgent:executor] Executing action:", action);
-            const el = document.querySelector(action.selector) as HTMLElement;
+            let el = document.querySelector(action.selector) as HTMLElement | null;
+
             if (!el) {
-              console.warn(`[BrowserAgent:executor] Element not found for selector "${action.selector}"`);
+              const box = fallbackBoxesArg[action.selector];
+              if (box) {
+                const cx = box.x + box.width / 2;
+                const cy = box.y + box.height / 2;
+                el = document.elementFromPoint(cx, cy) as HTMLElement | null;
+                if (el) {
+                  console.log(
+                    `[BrowserAgent:executor] Selector "${action.selector}" didn't resolve — used its recorded position (${cx}, ${cy}) instead, found`,
+                    el
+                  );
+                }
+              }
+            }
+
+            if (!el) {
+              console.warn(`[BrowserAgent:executor] Element not found for selector "${action.selector}" (no fallback position available)`);
               continue;
             }
 
@@ -608,7 +682,7 @@ async function executeActionsOnTab(tabId: number, actions: Action[]): Promise<vo
           }
         }
       },
-      args: [actions],
+      args: [actions, fallbackBoxes],
     });
   } catch (err) {
     console.error("[BrowserAgent:bg] Failed to execute script on tab:", err);

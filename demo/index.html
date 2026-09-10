@@ -31,8 +31,6 @@
       --ink: #0a0a0a; /* theme-invariant near-black — always-dark chrome (CTA button, download link) */
 
       --bg: #fdfbf3;
-      --aurora-1: rgba(250, 204, 21, .20);
-      --aurora-2: rgba(120, 113, 108, .07);
       --surface: #ffffff;
       --border: #e8e1c8;
       --text: #1c1917;
@@ -40,21 +38,17 @@
       --heading: #0a0a0a;
       --accent: #eab308;
       --accent-2: #ca8a04;
-      --accent-glow: rgba(234, 179, 8, .55);
-      --accent-2-glow: rgba(202, 138, 4, .55);
       --danger: #dc2626;
       --danger-bg: #fef2f2;
       --danger-border: #fecaca;
       --log-bg: #0a0a0a;
       --log-text: #facc15;
       --input-bg: #fffefb;
-      --shadow-card: 0 1px 3px rgba(20, 15, 0, .07);
+      --shadow-card: 0 1px 3px rgba(20, 15, 0, .08);
     }
 
     [data-theme="dark"] {
       --bg: #0a0a0a;
-      --aurora-1: rgba(250, 204, 21, .13);
-      --aurora-2: rgba(202, 138, 4, .11);
       --surface: #18150f;
       --border: #332c1a;
       --text: #f2ecd9;
@@ -62,8 +56,6 @@
       --heading: #fefce8;
       --accent: #facc15;
       --accent-2: #eab308;
-      --accent-glow: rgba(250, 204, 21, .55);
-      --accent-2-glow: rgba(234, 179, 8, .55);
       --danger: #f87171;
       --danger-bg: #2a1414;
       --danger-border: #5c1f1f;
@@ -76,10 +68,6 @@
     body {
       font-family: var(--font-body);
       background-color: var(--bg);
-      background-image:
-        radial-gradient(circle at 12% -10%, var(--aurora-1), transparent 45%),
-        radial-gradient(circle at 92% 0%, var(--aurora-2), transparent 40%);
-      background-attachment: fixed;
       color: var(--text);
       padding: 32px;
       max-width: 900px;
@@ -90,14 +78,12 @@
 
     h1 {
       font-family: var(--font-display);
-      font-size: 32px;
+      font-size: 30px;
       font-weight: 700;
       margin-bottom: 6px;
-      letter-spacing: .2px;
-      background: linear-gradient(95deg, var(--heading) 30%, var(--accent-2));
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+      letter-spacing: .1px;
+      color: var(--heading);
+      transition: color .3s ease;
     }
     .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; transition: color .3s ease; }
 
@@ -143,9 +129,9 @@
       font-weight: 600;
       cursor: pointer;
       box-shadow: var(--shadow-card);
-      transition: transform .18s ease, box-shadow .25s ease, background-color .3s ease, color .3s ease, border-color .3s ease;
+      transition: border-color .15s ease, background-color .3s ease, color .3s ease;
     }
-    .theme-toggle:hover { transform: translateY(-2px); box-shadow: 0 0 18px var(--accent-glow); }
+    .theme-toggle:hover { border-color: var(--accent-2); }
 
     /* ---- Form section ---- */
     .form-card {
@@ -183,22 +169,22 @@
       transition: border-color .15s ease, box-shadow .15s ease, background-color .3s ease, color .3s ease;
     }
 
-    .form-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .form-card input:focus { border-color: var(--accent-2); }
 
     .form-card button[type=submit] {
       margin-top: 20px;
       width: 100%;
       padding: 10px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: var(--ink);
+      background: var(--ink);
+      color: var(--accent);
       border: none;
       border-radius: 8px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: transform .18s ease, box-shadow .18s ease;
+      transition: background-color .15s ease;
     }
-    .form-card button[type=submit]:hover { transform: translateY(-1px); box-shadow: 0 0 20px var(--accent-glow); }
+    .form-card button[type=submit]:hover { background: #262016; }
 
     /* ---- Form + Face side by side, so both fit in one screenshot without scrolling ---- */
     .top-row {
@@ -280,30 +266,24 @@
 
     .controls button {
       padding: 10px 20px;
-      border-radius: 10px;
+      border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
       font-family: var(--font-mono);
       cursor: pointer;
-      border: none;
-      transition: transform .18s ease, box-shadow .18s ease, background .3s ease;
-    }
-    .controls button:hover { transform: translateY(-2px); }
-
-    #runPipelineBtn {
-      background: linear-gradient(135deg, var(--ink), #262016);
-      color: var(--accent);
-      animation: glowPulse 2.6s ease-in-out infinite;
-    }
-    #runPipelineBtn:hover { box-shadow: 0 0 26px var(--accent-glow); }
-
-    @keyframes glowPulse {
-      0%, 100% { box-shadow: 0 0 6px var(--accent-glow); }
-      50%      { box-shadow: 0 0 22px var(--accent-glow); }
+      border: 1px solid transparent;
+      transition: background-color .15s ease, border-color .15s ease;
     }
 
-    #runRedactionBtn { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--ink); }
-    #runRedactionBtn:hover { box-shadow: 0 0 22px var(--accent-2-glow); }
+    /* border-color matters here: --ink and dark-mode --bg are the same
+       color, so without a visible edge this button disappears into the
+       page background in dark mode — a real bug the old glow-on-hover
+       was accidentally masking. */
+    #runPipelineBtn { background: var(--ink); color: var(--accent); border-color: #33291a; }
+    #runPipelineBtn:hover { background: #262016; }
+
+    #runRedactionBtn { background: var(--surface); color: var(--text); border-color: var(--border); }
+    #runRedactionBtn:hover { border-color: var(--accent-2); }
 
     /* ---- Real pipeline result card ---- */
     #realResultCard {
@@ -328,16 +308,16 @@
       display: inline-block;
       margin-top: 14px;
       padding: 9px 18px;
-      background: linear-gradient(135deg, var(--ink), #262016);
+      background: var(--ink);
       color: var(--accent);
       border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
       font-family: var(--font-mono);
       text-decoration: none;
-      transition: transform .18s ease, box-shadow .18s ease;
+      transition: background-color .15s ease;
     }
-    #realResultCard a:hover { transform: translateY(-1px); box-shadow: 0 0 20px var(--accent-2-glow); }
+    #realResultCard a:hover { background: #262016; }
 
     /* ---- Leakage comparison ---- */
     .comparison-intro {
@@ -350,17 +330,17 @@
 
     #runComparisonBtn {
       padding: 10px 20px;
-      border-radius: 10px;
+      border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
       font-family: var(--font-mono);
       cursor: pointer;
-      border: none;
-      background: linear-gradient(135deg, var(--danger), var(--accent-2));
-      color: #fff;
-      transition: transform .18s ease, box-shadow .18s ease;
+      border: 1px solid #33291a;
+      background: var(--ink);
+      color: var(--accent);
+      transition: background-color .15s ease;
     }
-    #runComparisonBtn:hover { transform: translateY(-2px); box-shadow: 0 0 22px var(--accent-2-glow); }
+    #runComparisonBtn:hover { background: #262016; }
 
     #comparisonResult { margin-top: 20px; animation: fadeInUp .5s ease both; }
 
@@ -455,7 +435,7 @@
     On-device visual perception with local PII redaction. Run the extension on this page to see the agent in action.
   </p>
 
-  <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle light/dark theme">🌙 Dark</button>
+  <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle light/dark theme">Dark</button>
 
   <!-- ------------------------------------------------------------------ -->
   <!-- Form + Face side by side: chrome.tabs.captureVisibleTab only grabs  -->
@@ -523,8 +503,8 @@
     <h2>Redaction Preview (Before / After)</h2>
 
     <div class="controls">
-      <button id="runRedactionBtn">🛡 Demo Redaction (Standalone)</button>
-      <button id="runPipelineBtn">▶ Run Full Agent Pipeline</button>
+      <button id="runRedactionBtn">Demo Redaction (Standalone)</button>
+      <button id="runPipelineBtn">Run Full Agent Pipeline</button>
     </div>
 
     <div class="canvas-row">
@@ -546,7 +526,7 @@
       <h2>Real Redacted Image (actually sent to Gemini)</h2>
       <p>This is the exact PNG your device transmitted for this run — nothing more.</p>
       <img id="realResultImg" alt="Redacted screenshot actually sent to the VLM" />
-      <a id="realResultDownload">⬇ Download full-resolution PNG</a>
+      <a id="realResultDownload">Download full-resolution PNG</a>
     </div>
   </section>
 
@@ -560,16 +540,16 @@
       Same task, same cloud AI, one real screenshot — sent two ways. "Naive" is what a typical screenshot-based browser agent sends: the raw, untouched image. "Ours" is what this extension actually sends. Both go to Gemini for real.
     </p>
 
-    <button id="runComparisonBtn">⚔ Run Leakage Comparison</button>
+    <button id="runComparisonBtn">Run Leakage Comparison</button>
 
     <div id="comparisonResult" hidden>
       <div class="comparison-images">
         <div class="comparison-col">
-          <span class="comparison-label naive">❌ Naive Agent — sent to Gemini</span>
+          <span class="comparison-label naive">Naive Agent — sent to Gemini</span>
           <img id="naiveImg" alt="Raw unredacted screenshot sent to Gemini" />
         </div>
         <div class="comparison-col">
-          <span class="comparison-label ours">✅ Our Agent — sent to Gemini</span>
+          <span class="comparison-label ours">Our Agent — sent to Gemini</span>
           <img id="comparisonRedactedImg" alt="Redacted screenshot sent to Gemini" />
         </div>
       </div>
@@ -579,9 +559,9 @@
           <tr><th>Category</th><th>Naive Agent</th><th>Our Agent</th></tr>
         </thead>
         <tbody>
-          <tr><td>Face</td><td id="cmpFaceNaive">❌ Visible</td><td id="cmpFaceOurs">—</td></tr>
-          <tr><td>Password / email / phone / card / etc.</td><td id="cmpPiiNaive">❌ Visible</td><td id="cmpPiiOurs">—</td></tr>
-          <tr><td>Page structure sent to AI</td><td>✅ Sent</td><td>✅ Sent</td></tr>
+          <tr><td>Face</td><td id="cmpFaceNaive">Visible</td><td id="cmpFaceOurs">—</td></tr>
+          <tr><td>Password / email / phone / card / etc.</td><td id="cmpPiiNaive">Visible</td><td id="cmpPiiOurs">—</td></tr>
+          <tr><td>Page structure sent to AI</td><td>Sent</td><td>Sent</td></tr>
           <tr><td>Agent completed the task</td><td id="cmpTaskNaive">—</td><td id="cmpTaskOurs">—</td></tr>
         </tbody>
       </table>
@@ -646,7 +626,7 @@
         bCtx.drawImage(faceImg, 10, 10, 180, 180);
         appendLog("Drew face image on before-canvas.");
       } catch (e) {
-        appendLog("⚠ CORS — face image could not be drawn. Use a local image for full demo.");
+        appendLog("Warning: CORS — face image could not be drawn. Use a local image for full demo.");
         bCtx.fillStyle = "#cbd5e1";
         bCtx.fillRect(10, 10, 180, 180);
         bCtx.fillStyle = "#64748b";
@@ -696,7 +676,7 @@
       aCtx.fillText("PII REDACTED", 255, 55);
       aCtx.fillText("PII REDACTED", 255, 105);
 
-      appendLog("✅ Redaction demo complete. 3 regions redacted (1 face, 2 PII).");
+      appendLog("Redaction demo complete — 3 regions redacted (1 face, 2 PII).");
     });
 
     /** Pixelate a region — approximates blur for demo (no WebGL needed). */
@@ -734,23 +714,23 @@
     window.addEventListener("SIH_AGENT_ACK", () => {
       ackReceived = true;
       clearTimeout(ackTimer);
-      appendLog("✅ Extension received the task — running pipeline (model load + inference + redaction + server call)…");
+      appendLog("Extension received the task — running pipeline (model load + inference + redaction + server call)…");
     });
 
     window.addEventListener("SIH_AGENT_RESULT", (event) => {
       const { actionCount, log: perfLog, redactedImageDataUrl } = event.detail || {};
-      appendLog(`✅ Pipeline complete — ${actionCount ?? 0} action(s) executed on this page.`);
+      appendLog(`Pipeline complete — ${actionCount ?? 0} action(s) executed on this page.`);
       if (perfLog) {
         appendLog(`   total=${perfLog.totalMs?.toFixed?.(1)}ms  inference=${perfLog.inferenceMs?.toFixed?.(1)}ms  server=${perfLog.serverRoundtripMs?.toFixed?.(1)}ms  backend=${perfLog.deviceBackend}`);
         appendLog(`   domElements=${perfLog.domElementCount ?? "?"}  detections=${perfLog.detectionCount ?? "?"}  redactedRegions=${perfLog.redactedRegions ?? "?"}`);
         if (perfLog.inferenceError) {
-          appendLog(`❌ Vision model failed to run: ${perfLog.inferenceError}`);
+          appendLog(`Error: vision model failed to run: ${perfLog.inferenceError}`);
           appendLog("   This is why detections is 0 regardless of what's in the photo — it's not a 'no face found' result, inference never completed.");
         } else if ((perfLog.detectionCount ?? 0) === 0) {
-          appendLog("⚠ Vision model ran successfully but found 0 objects — the photo may not be a clear enough person/face shot, or is too stylized (cartoon/game avatar) for a photo-trained detector.");
+          appendLog("Warning: vision model ran successfully but found 0 objects — the photo may not be a clear enough person/face shot, or is too stylized (cartoon/game avatar) for a photo-trained detector.");
         }
         if ((actionCount ?? 0) === 0) {
-          appendLog("⚠ 0 actions means the VLM returned an empty plan — usually because domSummary was empty/unusable, or the model judged the (redacted) screenshot insufficient. Check the server terminal for the raw Gemini response.");
+          appendLog("Warning: 0 actions means the VLM returned an empty plan — usually because domSummary was empty/unusable, or the model judged the (redacted) screenshot insufficient. Check the server terminal for the raw Gemini response.");
         }
       }
 
@@ -776,26 +756,26 @@
       card.hidden = false;
       card.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
-      appendLog("🖼 Real redacted image ready below — click Download to inspect it at full resolution.");
+      appendLog("Real redacted image ready below — click Download to inspect it at full resolution.");
     }
 
     window.addEventListener("SIH_AGENT_ERROR", (event) => {
       const error = event.detail?.error ?? "unknown error";
-      appendLog(`❌ Agent error: ${error}`);
+      appendLog(`Error: agent error: ${error}`);
 
       // The content script binding dies whenever the extension is reloaded
       // while this tab is open. A plain page reload (which doesn't touch
       // chrome.* APIs, so it still works even from a dead content script)
       // re-injects a fresh one automatically — no manual F5 needed.
       if (error.includes("Extension context invalidated")) {
-        appendLog("🔄 Auto-refreshing this tab in 2s to reconnect to the extension…");
+        appendLog("Auto-refreshing this tab in 2s to reconnect to the extension…");
         setTimeout(() => location.reload(), 2000);
       }
     });
 
     document.getElementById("runPipelineBtn").addEventListener("click", async () => {
       if (location.protocol === "file:") {
-        appendLog("❌ This page was opened via file:// — Chrome extensions cannot access file:// pages by default.");
+        appendLog("Error: this page was opened via file:// — Chrome extensions cannot access file:// pages by default.");
         appendLog("   Start the server (cd server && npm run dev) and open http://localhost:3000/demo/index.html instead.");
         return;
       }
@@ -814,7 +794,7 @@
       clearTimeout(ackTimer);
       ackTimer = setTimeout(() => {
         if (ackReceived) return;
-        appendLog("⚠ No response from the extension after 3s. Checklist:");
+        appendLog("Warning: no response from the extension after 3s. Checklist:");
         appendLog("   1. Is the extension loaded? chrome://extensions → Load unpacked → select extension/");
         appendLog("   2. Did you rebuild it after code changes? (npm run build in extension/)");
         appendLog("   3. Reload this tab after (re)loading the extension — content scripts only attach on fresh page loads.");
@@ -827,7 +807,7 @@
     });
 
     if (location.protocol === "file:") {
-      appendLog("⚠ Opened via file:// — the extension cannot run here. Use http://localhost:3000/demo/index.html (start the server first) for the full pipeline demo. The standalone redaction demo above still works.");
+      appendLog("Warning: opened via file:// — the extension cannot run here. Use http://localhost:3000/demo/index.html (start the server first) for the full pipeline demo. The standalone redaction demo above still works.");
     }
 
     // -------------------------------------------------------------------------
@@ -841,9 +821,9 @@
       const reader = new FileReader();
       reader.onload = () => {
         document.getElementById("faceImg").src = reader.result;
-        appendLog(`📷 Loaded "${file.name}" as the face image — run the pipeline to test live detection.`);
+        appendLog(`Loaded "${file.name}" as the face image — run the pipeline to test live detection.`);
       };
-      reader.onerror = () => appendLog(`❌ Could not read "${file.name}".`);
+      reader.onerror = () => appendLog(`Error: could not read "${file.name}".`);
       reader.readAsDataURL(file);
     });
 
@@ -862,14 +842,14 @@
     window.addEventListener("SIH_COMPARISON_ACK", () => {
       comparisonAckReceived = true;
       clearTimeout(comparisonAckTimer);
-      appendLog("✅ Extension received the comparison task — capturing once, sending to Gemini two ways…");
+      appendLog("Extension received the comparison task — capturing once, sending to Gemini two ways…");
     });
 
     window.addEventListener("SIH_COMPARISON_ERROR", (event) => {
       const error = event.detail?.error ?? "unknown error";
-      appendLog(`❌ Comparison error: ${error}`);
+      appendLog(`Error: comparison error: ${error}`);
       if (error.includes("Extension context invalidated")) {
-        appendLog("🔄 Auto-refreshing this tab in 2s to reconnect to the extension…");
+        appendLog("Auto-refreshing this tab in 2s to reconnect to the extension…");
         setTimeout(() => location.reload(), 2000);
       }
     });
@@ -881,7 +861,7 @@
         log: perfLog,
       } = event.detail || {};
 
-      appendLog(`✅ Comparison complete — naive plan: ${naiveActionCount ?? 0} action(s), our plan: ${redactedActionCount ?? 0} action(s) (only ours was executed on the page).`);
+      appendLog(`Comparison complete — naive plan: ${naiveActionCount ?? 0} action(s), our plan: ${redactedActionCount ?? 0} action(s) (only ours was executed on the page).`);
 
       document.getElementById("naiveImg").src = naiveImageDataUrl;
       document.getElementById("comparisonRedactedImg").src = redactedImageDataUrl;
@@ -890,17 +870,17 @@
       const piiRedacted = (perfLog?.piiRegions ?? 0) > 0;
 
       document.getElementById("cmpFaceOurs").textContent = faceRedacted
-        ? "✅ Blurred"
-        : "⚠ No face detected this run";
+        ? "Blurred"
+        : "No face detected this run";
       document.getElementById("cmpPiiOurs").textContent = piiRedacted
-        ? "✅ Blacked out"
-        : "⚠ No PII fields detected this run";
+        ? "Blacked out"
+        : "No PII fields detected this run";
       document.getElementById("cmpTaskNaive").textContent = (naiveActionCount ?? 0) > 0
-        ? `✅ ${naiveActionCount} action(s) planned`
-        : "❌ 0 actions";
+        ? `${naiveActionCount} action(s) planned`
+        : "0 actions";
       document.getElementById("cmpTaskOurs").textContent = (redactedActionCount ?? 0) > 0
-        ? `✅ ${redactedActionCount} action(s) planned + executed`
-        : "❌ 0 actions";
+        ? `${redactedActionCount} action(s) planned + executed`
+        : "0 actions";
 
       document.getElementById("comparisonResult").hidden = false;
       document.getElementById("comparisonResult").scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -908,7 +888,7 @@
 
     document.getElementById("runComparisonBtn").addEventListener("click", async () => {
       if (location.protocol === "file:") {
-        appendLog("❌ This page was opened via file:// — Chrome extensions cannot access file:// pages by default.");
+        appendLog("Error: this page was opened via file:// — Chrome extensions cannot access file:// pages by default.");
         appendLog("   Start the server (cd server && npm run dev) and open http://localhost:3000/demo/index.html instead.");
         return;
       }
@@ -920,7 +900,7 @@
       clearTimeout(comparisonAckTimer);
       comparisonAckTimer = setTimeout(() => {
         if (comparisonAckReceived) return;
-        appendLog("⚠ No response from the extension after 3s. Same checklist as above: is it loaded, rebuilt, and has this tab been refreshed since?");
+        appendLog("Warning: no response from the extension after 3s. Same checklist as above: is it loaded, rebuilt, and has this tab been refreshed since?");
       }, 3000);
 
       window.dispatchEvent(new CustomEvent("SIH_RUN_COMPARISON", {
@@ -937,7 +917,7 @@
     function setTheme(theme) {
       document.documentElement.setAttribute("data-theme", theme);
       try { localStorage.setItem("sih-theme", theme); } catch (e) {}
-      themeToggleBtn.textContent = theme === "dark" ? "☀️ Light" : "🌙 Dark";
+      themeToggleBtn.textContent = theme === "dark" ? "Light" : "Dark";
     }
 
     setTheme(document.documentElement.getAttribute("data-theme") || "light");

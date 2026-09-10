@@ -51,15 +51,15 @@ export async function getHistory(): Promise<PerformanceLog[]> {
 
 export function formatLog(log: PerformanceLog): string {
   return [
-    `🕐 Total:          ${log.totalMs.toFixed(1)} ms`,
-    `🔋 Model load:     ${log.modelLoadMs.toFixed(1)} ms`,
-    `🔍 Inference:      ${log.inferenceMs.toFixed(1)} ms (${log.detectionCount} detections)`,
-    `🛡  Redaction:      ${log.redactionMs.toFixed(1)} ms (${log.redactedRegions} regions)`,
-    `🧩 DOM elements:   ${log.domElementCount}`,
-    `📦 Payload:        ${(log.payloadSizeBytes / 1024).toFixed(1)} KB`,
-    `🌐 Server RTT:     ${log.serverRoundtripMs.toFixed(1)} ms`,
-    `⚙️  Backend:        ${log.deviceBackend.toUpperCase()}`,
-    `🕓 At:             ${new Date(log.timestamp).toLocaleTimeString()}`,
+    `Total:        ${log.totalMs.toFixed(1)} ms`,
+    `Model load:   ${log.modelLoadMs.toFixed(1)} ms`,
+    `Inference:    ${log.inferenceMs.toFixed(1)} ms (${log.detectionCount} detections)`,
+    `Redaction:    ${log.redactionMs.toFixed(1)} ms (${log.redactedRegions} regions)`,
+    `DOM elements: ${log.domElementCount}`,
+    `Payload:      ${(log.payloadSizeBytes / 1024).toFixed(1)} KB`,
+    `Server RTT:   ${log.serverRoundtripMs.toFixed(1)} ms`,
+    `Backend:      ${log.deviceBackend.toUpperCase()}`,
+    `At:           ${new Date(log.timestamp).toLocaleTimeString()}`,
   ].join("\n");
 }
 

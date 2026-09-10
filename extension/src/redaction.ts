@@ -250,6 +250,18 @@ export function extractPIIRegionsFromDOM(domSummary: DomElement[]): BoundingBox[
   for (const el of domSummary) {
     let isPII = false;
 
+    // Any <iframe> is blacked out unconditionally, regardless of what's
+    // inside it. We deliberately do NOT scan into iframe content to
+    // redact only the sensitive parts — cross-frame coordinate math is
+    // easy to get subtly wrong, and a screenshot captures iframe pixels
+    // (payment widgets, chat embeds, anything) regardless of frame origin.
+    // Blacking out the whole region is the conservative, always-correct
+    // choice: worst case we redact something harmless, never something we
+    // shouldn't have.
+    if (el.tag === "iframe") {
+      isPII = true;
+    }
+
     if (el.tag === "input") {
       if (el.type && PII_INPUT_TYPES.has(el.type.toLowerCase())) {
         isPII = true;

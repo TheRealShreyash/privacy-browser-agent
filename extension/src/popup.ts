@@ -24,11 +24,11 @@ document.addEventListener("DOMContentLoaded", () => {
   runBtn.addEventListener("click", async () => {
     const task = taskInput.value.trim();
     if (!task) {
-      setStatus("⚠️ Please enter a task.", "warn");
+      setStatus("Please enter a task.", "warn");
       return;
     }
 
-    setStatus("⏳ Running agent pipeline…", "info");
+    setStatus("Running agent pipeline…", "info");
     runBtn.disabled = true;
 
     try {
@@ -39,19 +39,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await chrome.runtime.sendMessage({ type: "RUN_AGENT", task });
 
       if (response?.type === "AGENT_ERROR") {
-        setStatus(`❌ Error: ${response.error}`, "error");
+        setStatus(`Error: ${response.error}`, "error");
       } else if (response?.type === "AGENT_RESULT") {
         const actionCount = response.actionPlan?.actions?.length ?? 0;
-        setStatus(`✅ Done — ${actionCount} action(s) executed.`, "success");
+        setStatus(`Done — ${actionCount} action(s) executed.`, "success");
         if (response.redactedImageBase64) {
           showRedactedImage(response.redactedImageBase64);
         }
         await refreshPerfLog();
       } else {
-        setStatus("⚠️ Unexpected response from background.", "warn");
+        setStatus("Unexpected response from background.", "warn");
       }
     } catch (err) {
-      setStatus(`❌ ${(err as Error).message}`, "error");
+      setStatus(`Error: ${(err as Error).message}`, "error");
     } finally {
       runBtn.disabled = false;
     }

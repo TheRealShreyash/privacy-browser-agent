@@ -25,7 +25,6 @@
       --text-muted: #a89f8a;
       --accent: #facc15;
       --accent-2: #eab308;
-      --accent-glow: rgba(250, 204, 21, .55);
     }
 
     body {
@@ -48,10 +47,7 @@
       font-family: var(--font-display);
       font-size: 17px;
       font-weight: 700;
-      background: linear-gradient(95deg, var(--text) 30%, var(--accent));
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+      color: var(--text);
     }
 
     .badge {
@@ -88,7 +84,7 @@
       margin-top: 10px;
       width: 100%;
       padding: 10px;
-      background: linear-gradient(135deg, #000, #262016);
+      background: #000;
       color: var(--accent);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -96,17 +92,11 @@
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: transform .15s ease, box-shadow .15s ease;
-      animation: glowPulse 2.6s ease-in-out infinite;
+      transition: background-color .15s ease;
     }
 
-    @keyframes glowPulse {
-      0%, 100% { box-shadow: 0 0 4px var(--accent-glow); }
-      50%      { box-shadow: 0 0 16px var(--accent-glow); }
-    }
-
-    button#runBtn:hover { transform: translateY(-1px); box-shadow: 0 0 20px var(--accent-glow); }
-    button#runBtn:disabled { background: var(--surface-2); color: var(--text-muted); cursor: not-allowed; animation: none; box-shadow: none; }
+    button#runBtn:hover { background: #262016; }
+    button#runBtn:disabled { background: var(--surface-2); color: var(--text-muted); cursor: not-allowed; }
 
     .status {
       margin-top: 10px;
@@ -155,16 +145,16 @@
       width: 100%;
       text-align: center;
       padding: 7px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      background: var(--accent);
       color: #0a0a0a;
       border-radius: 6px;
       font-family: var(--font-mono);
       font-size: 11px;
       font-weight: 600;
       text-decoration: none;
-      transition: box-shadow .15s ease;
+      transition: background-color .15s ease;
     }
-    #resultDownload:hover { box-shadow: 0 0 14px var(--accent-glow); }
+    #resultDownload:hover { background: var(--accent-2); }
 
     .log-section {
       margin-top: 14px;
@@ -223,7 +213,7 @@
     placeholder="Describe a task… e.g. 'Fill out the login form with test credentials'"
   ></textarea>
 
-  <button id="runBtn">▶ Run Agent</button>
+  <button id="runBtn">Run Agent</button>
 
   <div id="status" class="status status-info">Ready. Enter a task and click Run.</div>
 
@@ -231,13 +221,13 @@
   <div id="resultSection" class="result-section" hidden>
     <span class="section-label">Redacted image sent to the VLM</span>
     <img id="resultImg" alt="Redacted screenshot actually sent to the VLM" />
-    <a id="resultDownload">⬇ Download full-resolution PNG</a>
+    <a id="resultDownload">Download full-resolution PNG</a>
   </div>
 
   <div class="log-section">
     <div class="log-header">
       <span>Performance Log</span>
-      <button id="refreshLog">↻ Refresh</button>
+      <button id="refreshLog">Refresh</button>
     </div>
     <pre id="logOutput">No runs yet.</pre>
   </div>

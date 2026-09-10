@@ -323,4 +323,18 @@ export const fixtures: Fixture[] = [
     imagePositiveIds: [],
     note: "Tests that non-face images (a logo) don't get swept up by the alt-text keyword fallback.",
   },
+  {
+    name: "Embedded payment widget (iframe)",
+    category: "iframe",
+    elements: [
+      el({ id: "cardholderName", tag: "input", type: "text", text: "Name on card" }),
+      el({ id: "stripeCardFrame", tag: "iframe", text: "Secure card payment" }),
+    ],
+    // cardholderName is a real positive too, same precedent as cc-name
+    // above — its label mentions "card" in a payment context, which is
+    // exactly the keyword signal meant to catch this, not a false alarm.
+    piiPositiveIds: ["stripeCardFrame", "cardholderName"],
+    imagePositiveIds: [],
+    note: "We deliberately don't scan inside iframes for precise per-field redaction (cross-frame coordinate math is easy to get subtly wrong, and untestable here without a live cross-origin iframe). Instead every iframe is blacked out in full, unconditionally — the screenshot already captures iframe pixels regardless of frame origin, so this closes that leak without needing to know what's inside.",
+  },
 ];

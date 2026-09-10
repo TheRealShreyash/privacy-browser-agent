@@ -145,12 +145,9 @@ export function renderHtmlReport(results: BenchmarkResults): string {
 
   h1 {
     font-family: var(--font-display);
-    font-size: 34px;
+    font-size: 32px;
     font-weight: 700;
-    background: linear-gradient(95deg, var(--ink) 30%, var(--accent-2));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--ink);
     margin-bottom: 4px;
   }
   .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 8px; }
